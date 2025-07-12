@@ -14,50 +14,25 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'sua-chave-secreta-aqui')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///espetinho.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Configurações para funcionar em todas as interfaces
-# Detectar se estamos no Render (produção) ou local
-is_render = os.environ.get('RENDER', False)
-is_production = os.environ.get('FLASK_ENV') == 'production'
-
-if is_render or is_production:
-    # Configuração para Render/Produção - usar configurações do Render
-    app.config['SERVER_NAME'] = None  # Permitir qualquer hostname
-    app.config['PREFERRED_URL_SCHEME'] = 'https'  # Render usa HTTPS
-    app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS requer cookies seguros
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-    print("🌐 Configuração de PRODUÇÃO ativada - Render")
-else:
-    # Configuração para desenvolvimento local
-    app.config['SERVER_NAME'] = None  # Permite acesso por qualquer hostname
-    app.config['PREFERRED_URL_SCHEME'] = 'http'
-    app.config['SESSION_COOKIE_SECURE'] = False
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-    print("🌐 Configuração de DESENVOLVIMENTO ativada - localhost e IP")
+# Configuração unificada - funciona em qualquer ambiente
+app.config['SERVER_NAME'] = None  # Aceita qualquer hostname
+app.config['PREFERRED_URL_SCHEME'] = 'http'  # Usa HTTP por padrão
+app.config['SESSION_COOKIE_SECURE'] = False  # Não força HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Middleware para adicionar headers CORS e logs
+# Middleware para adicionar headers CORS
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    
-    # Log detalhado de cada requisição
-    print(f"🌐 REQUEST: {request.method} {request.url}")
-    print(f"🌐 HOST: {request.host}")
-    print(f"🌐 REMOTE: {request.remote_addr}")
-    print(f"🌐 USER-AGENT: {request.headers.get('User-Agent', 'N/A')}")
-    print(f"🌐 STATUS: {response.status_code}")
-    print("---")
-    
     return response
 
 # Modelos do banco de dados
@@ -162,23 +137,6 @@ def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template('index.html')
-
-@app.route('/status')
-def status():
-    """Rota para verificar status do sistema"""
-    return jsonify({
-        'status': 'online',
-        'timestamp': datetime.now().isoformat(),
-        'environment': 'production' if os.environ.get('RENDER') else 'development',
-        'host': request.host,
-        'url': request.url,
-        'config': {
-            'server_name': app.config.get('SERVER_NAME'),
-            'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
-            'session_cookie_secure': app.config.get('SESSION_COOKIE_SECURE'),
-            'debug': app.debug
-        }
-    })
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -374,10 +332,8 @@ def zerar_estoque(id):
         item.quantidade = 0
     
     db.session.commit()
-    
     return jsonify({'success': True, 'message': 'Estoque zerado com sucesso!'})
 
-# Rotas para código de barras
 @app.route('/codigo-barras')
 @login_required
 def codigo_barras():
@@ -444,39 +400,18 @@ def calcular_preco_sugerido():
 @app.route('/estoque')
 @login_required
 def estoque():
-    print("DEBUG: Acessando página de estoque")
-    
-    # Mostrar TODOS os produtos (ativos e inativos) para debug
-    todos_produtos = Produto.query.all()
-    print(f"DEBUG: Total de produtos no banco: {len(todos_produtos)}")
-    for p in todos_produtos:
-        print(f"DEBUG: Produto '{p.nome}' - Ativo: {p.ativo} - ID: {p.id}")
-    
     produtos = Produto.query.filter_by(ativo=True).all()
     estoque_data = []
     
     for produto in produtos:
-        # Debug detalhado para cada produto
-        print(f"DEBUG: Produto '{produto.nome}' (ID: {produto.id})")
-        
         # Buscar estoque diretamente
         estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
-        print(f"DEBUG: - Quantidade de estoque_items encontrados: {len(estoque_items)}")
-        
-        for item in estoque_items:
-            print(f"DEBUG: - Item estoque ID: {item.id}, Qtd: {item.quantidade}, Custo: {item.custo_unitario}")
-        
         estoque_atual = sum(e.quantidade for e in estoque_items)
-        print(f"DEBUG: - Estoque total calculado: {estoque_atual}")
         
         estoque_data.append({
             'produto': produto,
             'quantidade': estoque_atual
         })
-        print(f"DEBUG: {produto.nome} - Estoque final: {estoque_atual}")
-        print("---")
-    
-    print(f"DEBUG: Total de produtos processados: {len(estoque_data)}")
     
     return render_template('estoque.html', estoque_data=estoque_data)
 
@@ -485,24 +420,13 @@ def estoque():
 def adicionar_estoque():
     if request.method == 'POST':
         try:
-            print(f"DEBUG: Recebendo dados do formulário de estoque: {request.form}")
-            
-            # Verificar se todos os campos estão presentes
-            if 'produto_id' not in request.form or 'quantidade' not in request.form or 'custo_unitario' not in request.form:
-                print(f"DEBUG: Campos faltando no formulário: {list(request.form.keys())}")
-                flash('Todos os campos são obrigatórios!', 'error')
-                return redirect(url_for('adicionar_estoque'))
-            
             produto_id = int(request.form['produto_id'])
             quantidade = int(request.form['quantidade'])
             custo_unitario = float(request.form['custo_unitario'])
             
-            print(f"DEBUG: Dados processados - Produto ID: {produto_id}, Qtd: {quantidade}, Custo: {custo_unitario}")
-            
             # Verificar se o produto existe
             produto = Produto.query.get(produto_id)
             if not produto:
-                print(f"DEBUG: Produto não encontrado: {produto_id}")
                 flash('Produto não encontrado!', 'error')
                 return redirect(url_for('adicionar_estoque'))
             
@@ -512,27 +436,13 @@ def adicionar_estoque():
                 custo_unitario=custo_unitario
             )
             
-            print(f"DEBUG: Criando entrada de estoque para: {produto.nome}")
-            
             db.session.add(estoque)
             db.session.commit()
             
-            print(f"DEBUG: Estoque adicionado com sucesso! ID: {estoque.id}")
-            
-            # Verificar se o estoque foi realmente salvo
-            estoque_salvo = Estoque.query.get(estoque.id)
-            if estoque_salvo:
-                print(f"DEBUG: Estoque confirmado no banco - ID: {estoque_salvo.id}, Qtd: {estoque_salvo.quantidade}")
-            else:
-                print("DEBUG: ERRO - Estoque não encontrado no banco após salvar!")
-            
             flash('Estoque adicionado com sucesso!', 'success')
-            print(f"DEBUG: Redirecionando para: {url_for('estoque')}")
-            # Garantir que o redirecionamento seja feito corretamente
-            return redirect(url_for('estoque'), code=302)
+            return redirect(url_for('estoque'))
             
         except Exception as e:
-            print(f"DEBUG: Erro ao adicionar estoque: {str(e)}")
             db.session.rollback()
             flash(f'Erro ao adicionar estoque: {str(e)}', 'error')
             return redirect(url_for('adicionar_estoque'))
@@ -580,6 +490,7 @@ def nova_venda():
             observacoes=data.get('observacoes', ''),
             user_id=current_user.id
         )
+        
         db.session.add(venda)
         db.session.flush()  # Para obter o ID da venda
         
@@ -609,24 +520,17 @@ def nova_venda():
                     estoque_item.quantidade = 0
         
         db.session.commit()
-        return jsonify({'success': True, 'venda_id': venda.id})
-    
-    produtos = Produto.query.filter_by(ativo=True).all()
-    # Converter produtos para dicionários serializáveis
-    produtos_data = []
-    for produto in produtos:
-        estoque_atual = sum(e.quantidade for e in produto.estoque_items)
-        produtos_data.append({
-            'id': produto.id,
-            'nome': produto.nome,
-            'tipo': produto.tipo,
-            'preco_padrao': produto.preco_padrao,
-            'descricao': produto.descricao,
-            'estoque': estoque_atual
+        
+        return jsonify({
+            'success': True,
+            'venda_id': venda.id,
+            'message': 'Venda registrada com sucesso!'
         })
     
-    return render_template('nova_venda.html', produtos=produtos_data)
+    produtos = Produto.query.filter_by(ativo=True).all()
+    return render_template('nova_venda.html', produtos=produtos)
 
+# APIs
 @app.route('/api/produtos')
 @login_required
 def api_produtos():
@@ -636,7 +540,7 @@ def api_produtos():
         'nome': p.nome,
         'tipo': p.tipo,
         'preco_padrao': p.preco_padrao,
-        'estoque': sum(e.quantidade for e in p.estoque_items)
+        'descricao': p.descricao
     } for p in produtos])
 
 @app.route('/api/produto/<int:id>')
@@ -644,16 +548,11 @@ def api_produtos():
 def api_produto(id):
     produto = Produto.query.get_or_404(id)
     return jsonify({
-        'success': True,
-        'produto': {
-            'id': produto.id,
-            'nome': produto.nome,
-            'tipo': produto.tipo,
-            'preco_padrao': produto.preco_padrao,
-            'preco_custo': produto.preco_custo,
-            'margem_lucro': produto.margem_lucro,
-            'estoque': sum(e.quantidade for e in produto.estoque_items)
-        }
+        'id': produto.id,
+        'nome': produto.nome,
+        'tipo': produto.tipo,
+        'preco_padrao': produto.preco_padrao,
+        'descricao': produto.descricao
     })
 
 # Rotas de relatórios
@@ -665,169 +564,160 @@ def relatorios():
 @app.route('/api/relatorio/vendas')
 @gerente_required
 def api_relatorio_vendas():
-    data_inicio = request.args.get('data_inicio')
-    data_fim = request.args.get('data_fim')
-    
-    query = Venda.query
-    
-    if data_inicio:
-        query = query.filter(Venda.data_venda >= datetime.strptime(data_inicio, '%Y-%m-%d'))
-    if data_fim:
-        # Adicionar 23:59:59 para incluir o dia inteiro
-        data_fim_dt = datetime.strptime(data_fim, '%Y-%m-%d') + timedelta(days=1, seconds=-1)
-        query = query.filter(Venda.data_venda <= data_fim_dt)
-    
-    vendas = query.all()
-    
-    total_vendas = sum(v.valor_total for v in vendas)
-    total_descontos = sum(v.desconto for v in vendas)
-    qtd_vendas = len(vendas)
-    
-    # Calcular vendas por forma de pagamento
-    vendas_por_pagamento = {}
-    for venda in vendas:
-        forma = venda.forma_pagamento
-        if forma not in vendas_por_pagamento:
-            vendas_por_pagamento[forma] = {'total': 0, 'quantidade': 0}
-        vendas_por_pagamento[forma]['total'] += venda.valor_total
-        vendas_por_pagamento[forma]['quantidade'] += 1
-    
-    # Se não há vendas, criar dados vazios para os gráficos
-    if not vendas_por_pagamento:
-        vendas_por_pagamento = {
-            'dinheiro': {'total': 0, 'quantidade': 0},
-            'pix': {'total': 0, 'quantidade': 0},
-            'cartão': {'total': 0, 'quantidade': 0}
-        }
-    
-    # Calcular vendas por dia (para gráfico)
-    vendas_por_dia = {}
-    for venda in vendas:
-        data = venda.data_venda.strftime('%Y-%m-%d')
-        if data not in vendas_por_dia:
-            vendas_por_dia[data] = {'total': 0, 'quantidade': 0}
-        vendas_por_dia[data]['total'] += venda.valor_total
-        vendas_por_dia[data]['quantidade'] += 1
-    
-    # Se não há vendas por dia, criar dados vazios
-    if not vendas_por_dia:
-        # Criar dados para os últimos 7 dias
-        from datetime import datetime, timedelta
-        hoje = datetime.now()
-        for i in range(7):
-            data = (hoje - timedelta(days=i)).strftime('%Y-%m-%d')
-            vendas_por_dia[data] = {'total': 0, 'quantidade': 0}
-    
-    # Calcular produtos mais vendidos
-    produtos_vendidos = {}
-    for venda in vendas:
-        for item in venda.itens:
-            produto_nome = item.produto.nome
-            if produto_nome not in produtos_vendidos:
-                produtos_vendidos[produto_nome] = {'quantidade': 0, 'total': 0}
-            produtos_vendidos[produto_nome]['quantidade'] += item.quantidade
-            produtos_vendidos[produto_nome]['total'] += item.preco_total
-    
-    # Top 5 produtos mais vendidos
-    top_produtos = sorted(produtos_vendidos.items(), key=lambda x: x[1]['quantidade'], reverse=True)[:5]
-    
-    return jsonify({
-        'total_vendas': total_vendas,
-        'total_descontos': total_descontos,
-        'qtd_vendas': qtd_vendas,
-        'lucro_estimado': total_vendas * 0.6,  # Estimativa de 60% de lucro
-        'ticket_medio': total_vendas / qtd_vendas if qtd_vendas > 0 else 0,
-        'vendas_por_pagamento': vendas_por_pagamento,
-        'vendas_por_dia': vendas_por_dia,
-        'top_produtos': top_produtos
-    })
+    try:
+        # Parâmetros de filtro
+        data_inicio = request.args.get('data_inicio')
+        data_fim = request.args.get('data_fim')
+        
+        # Query base
+        query = Venda.query
+        
+        # Aplicar filtros de data se fornecidos
+        if data_inicio:
+            query = query.filter(Venda.data_venda >= datetime.strptime(data_inicio, '%Y-%m-%d'))
+        if data_fim:
+            query = query.filter(Venda.data_venda <= datetime.strptime(data_fim + ' 23:59:59', '%Y-%m-%d %H:%M:%S'))
+        
+        # Ordenar por data
+        vendas = query.order_by(Venda.data_venda.desc()).all()
+        
+        # Preparar dados para o relatório
+        dados_vendas = []
+        for venda in vendas:
+            dados_vendas.append({
+                'id': venda.id,
+                'data': venda.data_venda.strftime('%d/%m/%Y %H:%M'),
+                'valor_total': venda.valor_total,
+                'desconto': venda.desconto,
+                'valor_liquido': venda.valor_total - venda.desconto,
+                'forma_pagamento': venda.forma_pagamento,
+                'vendedor': venda.user.nome,
+                'observacoes': venda.observacoes or '',
+                'itens': [{
+                    'produto': item.produto.nome,
+                    'quantidade': item.quantidade,
+                    'preco_unitario': item.preco_unitario,
+                    'preco_total': item.preco_total
+                } for item in venda.itens]
+            })
+        
+        # Calcular totais
+        total_vendas = len(dados_vendas)
+        total_receita = sum(v['valor_liquido'] for v in dados_vendas)
+        total_descontos = sum(v['desconto'] for v in dados_vendas)
+        
+        return jsonify({
+            'success': True,
+            'vendas': dados_vendas,
+            'resumo': {
+                'total_vendas': total_vendas,
+                'total_receita': total_receita,
+                'total_descontos': total_descontos
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 @app.route('/debug/estoque')
 @login_required
 def debug_estoque():
-    """Rota de debug para verificar o estado do estoque"""
-    if current_user.role != 'admin':
-        return jsonify({'error': 'Acesso negado'}), 403
-    
-    # Verificar produtos
-    produtos = Produto.query.all()
-    produtos_data = []
-    for produto in produtos:
-        estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
-        estoque_total = sum(e.quantidade for e in estoque_items)
-        produtos_data.append({
-            'id': produto.id,
-            'nome': produto.nome,
-            'tipo': produto.tipo,
-            'ativo': produto.ativo,
-            'estoque_total': estoque_total,
-            'estoque_items': [{'id': e.id, 'quantidade': e.quantidade, 'custo': e.custo_unitario} for e in estoque_items]
+    """Rota de debug para verificar dados do estoque"""
+    try:
+        produtos = Produto.query.filter_by(ativo=True).all()
+        debug_data = []
+        
+        for produto in produtos:
+            estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+            estoque_total = sum(e.quantidade for e in estoque_items)
+            
+            debug_data.append({
+                'produto_id': produto.id,
+                'produto_nome': produto.nome,
+                'estoque_total': estoque_total,
+                'estoque_items': [{
+                    'id': item.id,
+                    'quantidade': item.quantidade,
+                    'custo_unitario': item.custo_unitario,
+                    'data_entrada': item.data_entrada.strftime('%d/%m/%Y %H:%M')
+                } for item in estoque_items]
+            })
+        
+        return jsonify({
+            'success': True,
+            'debug_data': debug_data,
+            'total_produtos': len(debug_data)
         })
-    
-    # Verificar todas as entradas de estoque
-    estoque_todos = Estoque.query.all()
-    estoque_data = [{'id': e.id, 'produto_id': e.produto_id, 'quantidade': e.quantidade, 'custo': e.custo_unitario} for e in estoque_todos]
-    
-    return jsonify({
-        'produtos': produtos_data,
-        'estoque_entries': estoque_data,
-        'total_produtos': len(produtos),
-        'total_estoque_entries': len(estoque_todos)
-    })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 @app.route('/api/relatorio/lucratividade')
 @gerente_required
 def api_relatorio_lucratividade():
-    """Relatório de lucratividade dos produtos"""
-    produtos = Produto.query.filter_by(ativo=True).all()
-    
-    # Calcular estatísticas de lucratividade
-    produtos_com_custo = []
-    total_custo = 0
-    total_receita_potencial = 0
-    total_lucro_potencial = 0
-    
-    for produto in produtos:
-        if produto.preco_custo > 0:
-            lucro_unitario = produto.calcular_lucro_atual()
-            margem = produto.calcular_margem_atual()
-            estoque_atual = sum(e.quantidade for e in produto.estoque_items)
+    try:
+        produtos = Produto.query.filter_by(ativo=True).all()
+        dados_lucratividade = []
+        
+        for produto in produtos:
+            # Calcular dados de vendas
+            vendas_produto = ItemVenda.query.filter_by(produto_id=produto.id).all()
+            qtd_vendida = sum(v.quantidade for v in vendas_produto)
+            receita_total = sum(v.preco_total for v in vendas_produto)
             
-            produtos_com_custo.append({
-                'id': produto.id,
-                'nome': produto.nome,
+            # Calcular custo total
+            estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+            qtd_comprada = sum(e.quantidade for e in estoque_items)
+            custo_total = sum(e.quantidade * e.custo_unitario for e in estoque_items)
+            
+            # Calcular lucro
+            lucro_total = receita_total - custo_total
+            margem_lucro = (lucro_total / custo_total * 100) if custo_total > 0 else 0
+            
+            dados_lucratividade.append({
+                'produto_id': produto.id,
+                'produto_nome': produto.nome,
                 'tipo': produto.tipo,
+                'preco_padrao': produto.preco_padrao,
                 'preco_custo': produto.preco_custo,
-                'preco_venda': produto.preco_padrao,
-                'lucro_unitario': lucro_unitario,
-                'margem': margem,
-                'estoque': estoque_atual,
-                'lucro_total_estoque': lucro_unitario * estoque_atual
+                'qtd_vendida': qtd_vendida,
+                'qtd_comprada': qtd_comprada,
+                'receita_total': receita_total,
+                'custo_total': custo_total,
+                'lucro_total': lucro_total,
+                'margem_lucro': margem_lucro
             })
-            
-            total_custo += produto.preco_custo * estoque_atual
-            total_receita_potencial += produto.preco_padrao * estoque_atual
-            total_lucro_potencial += lucro_unitario * estoque_atual
-    
-    # Ordenar por margem de lucro
-    produtos_com_custo.sort(key=lambda x: x['margem'], reverse=True)
-    
-    # Calcular médias
-    margem_media = sum(p['margem'] for p in produtos_com_custo) / len(produtos_com_custo) if produtos_com_custo else 0
-    
-    return jsonify({
-        'resumo': {
-            'total_produtos': len(produtos),
-            'produtos_com_custo': len(produtos_com_custo),
-            'margem_media': round(margem_media, 1),
-            'total_custo_estoque': round(total_custo, 2),
-            'total_receita_potencial': round(total_receita_potencial, 2),
-            'total_lucro_potencial': round(total_lucro_potencial, 2)
-        },
-        'produtos': produtos_com_custo
-    })
+        
+        # Calcular totais
+        total_receita = sum(p['receita_total'] for p in dados_lucratividade)
+        total_custo = sum(p['custo_total'] for p in dados_lucratividade)
+        total_lucro = sum(p['lucro_total'] for p in dados_lucratividade)
+        margem_geral = (total_lucro / total_custo * 100) if total_custo > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'produtos': dados_lucratividade,
+            'resumo': {
+                'total_receita': total_receita,
+                'total_custo': total_custo,
+                'total_lucro': total_lucro,
+                'margem_geral': margem_geral
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
-# Rota para PWA
+# PWA Routes
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
@@ -854,135 +744,13 @@ def manifest():
 
 @app.route('/sw.js')
 def service_worker():
-    return app.send_static_file('sw.js')
+    return send_file('static/sw.js', mimetype='application/javascript')
 
 @app.route('/teste-camera')
 def teste_camera():
-    return app.send_static_file('teste_camera_debug.html')
+    return render_template('teste_camera_debug.html')
 
-@app.route('/teste-conexao')
-def teste_conexao():
-    """Rota para testar se a conexão está funcionando"""
-    return jsonify({
-        'status': 'success',
-        'message': 'Conexão funcionando!',
-        'timestamp': datetime.now().isoformat(),
-        'host': request.host,
-        'url': request.url,
-        'method': request.method,
-        'remote_addr': request.remote_addr,
-        'user_agent': request.headers.get('User-Agent', 'N/A'),
-        'headers': dict(request.headers),
-        'app_config': {
-            'server_name': app.config.get('SERVER_NAME'),
-            'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
-            'host': app.config.get('HOST'),
-            'port': app.config.get('PORT'),
-            'is_render': os.environ.get('RENDER', False),
-            'is_production': os.environ.get('FLASK_ENV') == 'production'
-        }
-    })
-
-@app.route('/diagnostico')
-def diagnostico():
-    """Rota de diagnóstico completo do sistema"""
-    try:
-        # Verificar banco de dados
-        produtos_count = Produto.query.count()
-        estoque_count = Estoque.query.count()
-        vendas_count = Venda.query.count()
-        users_count = User.query.count()
-        
-        # Verificar configurações de host
-        host_info = {
-            'request_host': request.host,
-            'request_url': request.url,
-            'request_remote_addr': request.remote_addr,
-            'request_user_agent': request.headers.get('User-Agent', 'N/A'),
-            'request_headers': dict(request.headers),
-            'app_server_name': app.config.get('SERVER_NAME'),
-            'app_preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
-            'app_debug': app.debug,
-            'app_env': os.environ.get('FLASK_ENV', 'development')
-        }
-        
-        # Verificar estoque atual
-        estoque_data = []
-        for produto in Produto.query.filter_by(ativo=True).all():
-            estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
-            estoque_total = sum(e.quantidade for e in estoque_items)
-            estoque_data.append({
-                'id': produto.id,
-                'nome': produto.nome,
-                'estoque_total': estoque_total,
-                'estoque_items': len(estoque_items)
-            })
-        
-        return jsonify({
-            'status': 'success',
-            'timestamp': datetime.now().isoformat(),
-            'request_info': {
-                'host': request.host,
-                'url': request.url,
-                'remote_addr': request.remote_addr,
-                'user_agent': request.headers.get('User-Agent', 'N/A')
-            },
-            'database': {
-                'produtos': produtos_count,
-                'estoque_entries': estoque_count,
-                'vendas': vendas_count,
-                'users': users_count
-            },
-            'estoque_atual': estoque_data,
-            'app_config': {
-                'debug': app.debug,
-                'secret_key': '***' if app.config.get('SECRET_KEY') else 'Not set',
-                'server_name': app.config.get('SERVER_NAME'),
-                'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME')
-            },
-            'host_info': host_info
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        })
-
-if __name__ == '__main__':
-    # Verificar se existem certificados SSL
-    cert_path = 'certs/cert.pem'
-    key_path = 'certs/key.pem'
-    use_https = os.path.exists(cert_path) and os.path.exists(key_path)
-    
-    if use_https:
-        print("🔐 HTTPS detectado! Sistema será iniciado com SSL")
-        print("🚀 Sistema iniciado! Acesse: https://localhost:5000")
-        print("🌐 Para acesso externo: https://10.0.0.105:5000")
-        print("👤 Login: admin / admin123")
-        print("⚠️  Aceite o aviso de certificado não confiável no navegador")
-        
-        app.run(debug=True, host='0.0.0.0', port=5000, 
-               ssl_context=(cert_path, key_path))
-    else:
-        print("🔓 HTTP detectado! Sistema será iniciado sem SSL")
-        print("🚀 Sistema iniciado! Acesse: http://localhost:5000")
-        print("🌐 Para acesso externo: http://10.0.0.105:5000")
-        print("👤 Login: admin / admin123")
-        print("💡 Para câmera em todos os navegadores, execute: python gerar_certificados.py")
-        
-        # Configurar para funcionar em todas as interfaces
-        print("🌐 URLs disponíveis:")
-        print("   - Local: http://localhost:5000")
-        print("   - IP: http://10.0.0.105:5000")
-        print("   - Rede: http://0.0.0.0:5000")
-        print("📱 Para acesso externo use: http://10.0.0.105:5000")
-        print("👤 Login: admin / admin123")
-        print("💡 Para câmera em todos os navegadores, execute: python gerar_certificados.py")
-        
-        app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
-
-# Initialize database and create admin user (after all models are defined)
+# Initialize database and create admin user
 def initialize_app():
     with app.app_context():
         try:
@@ -1140,4 +908,9 @@ def initialize_app():
             print(f"❌ Error initializing database: {e}")
 
 # Executar inicialização apenas uma vez
-initialize_app() 
+initialize_app()
+
+if __name__ == '__main__':
+    print("🚀 Sistema Espetinho iniciado!")
+    print("👤 Login: admin / admin123")
+    app.run(debug=True, host='0.0.0.0', port=5000) 
