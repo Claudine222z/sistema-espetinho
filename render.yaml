@@ -12,4 +12,6 @@ services:
       - key: FLASK_DEBUG
         value: 0
       - key: RENDER
-        value: true 
+        value: true
+      - key: HOST_URL
+        value: https://sistema-espetinho-4.onrender.com 

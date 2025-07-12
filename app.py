@@ -22,14 +22,30 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configuração unificada - funciona em qualquer ambiente
-app.config['SERVER_NAME'] = None  # Aceita qualquer hostname
-app.config['PREFERRED_URL_SCHEME'] = 'http'  # Usa HTTP por padrão
-app.config['SESSION_COOKIE_SECURE'] = False  # Não força HTTPS
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-app.config['SESSION_COOKIE_DOMAIN'] = None  # Permite qualquer domínio
-app.config['SESSION_COOKIE_PATH'] = '/'
+is_render = os.environ.get('RENDER', False)
+
+if is_render:
+    # Configuração específica para Render - simular comportamento do IP local
+    app.config['SERVER_NAME'] = None
+    app.config['PREFERRED_URL_SCHEME'] = 'https'  # Render usa HTTPS
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+    app.config['SESSION_COOKIE_DOMAIN'] = None
+    app.config['SESSION_COOKIE_PATH'] = '/'
+    print("🌐 Configuração RENDER ativada - simula comportamento do IP local")
+else:
+    # Configuração para desenvolvimento local
+    app.config['SERVER_NAME'] = None  # Aceita qualquer hostname
+    app.config['PREFERRED_URL_SCHEME'] = 'http'  # Usa HTTP por padrão
+    app.config['SESSION_COOKIE_SECURE'] = False  # Não força HTTPS
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+    app.config['SESSION_COOKIE_DOMAIN'] = None  # Permite qualquer domínio
+    app.config['SESSION_COOKIE_PATH'] = '/'
+    print("🌐 Configuração LOCAL ativada")
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -887,6 +903,21 @@ def limpar_cache():
     response.headers.add('Expires', 'Thu, 01 Jan 1970 00:00:00 GMT')
     
     return response
+
+@app.route('/ambiente')
+def ambiente():
+    """Rota para verificar configuração do ambiente"""
+    return jsonify({
+        'is_render': is_render,
+        'host_url': os.environ.get('HOST_URL', 'Não definido'),
+        'flask_env': os.environ.get('FLASK_ENV', 'development'),
+        'server_name': app.config.get('SERVER_NAME'),
+        'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
+        'session_cookie_secure': app.config.get('SESSION_COOKIE_SECURE'),
+        'request_host': request.host,
+        'request_url': request.url,
+        'database_path': db_path
+    })
  
 # Initialize database and create admin user
 def initialize_app():

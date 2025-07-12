@@ -6,7 +6,7 @@ Este arquivo garante que o sistema use o IP 10.0.0.105:5000
 
 import os
 
-# Configurações específicas para Render
+# Configurações específicas para Render - simular comportamento do IP local
 RENDER_CONFIG = {
     'HOST': '0.0.0.0',  # Permitir qualquer host
     'PORT': 5000,
@@ -16,7 +16,8 @@ RENDER_CONFIG = {
     'SESSION_COOKIE_HTTPONLY': True,
     'SESSION_COOKIE_SAMESITE': 'Lax',
     'FLASK_ENV': 'production',
-    'FLASK_DEBUG': False
+    'FLASK_DEBUG': False,
+    'HOST_URL': 'https://sistema-espetinho-4.onrender.com'  # URL do Render
 }
 
 def apply_render_config(app):
