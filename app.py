@@ -1003,5 +1003,137 @@ with app.app_context():
             print("✅ Usuário admin criado!")
         else:
             print("✅ Usuário admin já existe!")
+        
+        # Criar dados de exemplo se não existirem produtos
+        if Produto.query.count() == 0:
+            print("📦 Criando produtos de exemplo...")
+            
+            # Produtos de exemplo
+            produtos_exemplo = [
+                {
+                    'nome': 'Espetinho de Carne',
+                    'tipo': 'espetinho',
+                    'preco_padrao': 8.50,
+                    'preco_custo': 5.00,
+                    'margem_lucro': 30.0,
+                    'descricao': 'Espetinho de carne bovina grelhada'
+                },
+                {
+                    'nome': 'Espetinho de Frango',
+                    'tipo': 'espetinho',
+                    'preco_padrao': 7.50,
+                    'preco_custo': 4.50,
+                    'margem_lucro': 30.0,
+                    'descricao': 'Espetinho de frango grelhado'
+                },
+                {
+                    'nome': 'Refrigerante Coca-Cola',
+                    'tipo': 'bebida',
+                    'preco_padrao': 5.00,
+                    'preco_custo': 2.50,
+                    'margem_lucro': 50.0,
+                    'descricao': 'Refrigerante Coca-Cola 350ml'
+                },
+                {
+                    'nome': 'Água Mineral',
+                    'tipo': 'bebida',
+                    'preco_padrao': 3.00,
+                    'preco_custo': 1.50,
+                    'margem_lucro': 50.0,
+                    'descricao': 'Água mineral 500ml'
+                }
+            ]
+            
+            for dados_produto in produtos_exemplo:
+                produto = Produto(**dados_produto)
+                produto.preco_sugerido = produto.calcular_preco_sugerido()
+                db.session.add(produto)
+            
+            db.session.commit()
+            print("✅ Produtos de exemplo criados!")
+            
+            # Adicionar estoque inicial
+            print("📦 Adicionando estoque inicial...")
+            produtos = Produto.query.all()
+            for produto in produtos:
+                estoque = Estoque(
+                    produto_id=produto.id,
+                    quantidade=50,
+                    custo_unitario=produto.preco_custo
+                )
+                db.session.add(estoque)
+            
+            db.session.commit()
+            print("✅ Estoque inicial adicionado!")
+            
+            # Criar algumas vendas de exemplo
+            print("💰 Criando vendas de exemplo...")
+            vendas_exemplo = [
+                {
+                    'valor_total': 25.50,
+                    'desconto': 0,
+                    'forma_pagamento': 'dinheiro',
+                    'observacoes': 'Venda de exemplo',
+                    'user_id': admin_user.id,
+                    'itens': [
+                        {'produto_id': 1, 'quantidade': 2, 'preco_unitario': 8.50, 'preco_total': 17.00},
+                        {'produto_id': 3, 'quantidade': 1, 'preco_unitario': 5.00, 'preco_total': 5.00},
+                        {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
+                    ]
+                },
+                {
+                    'valor_total': 16.00,
+                    'desconto': 2.00,
+                    'forma_pagamento': 'pix',
+                    'observacoes': 'Venda com desconto',
+                    'user_id': admin_user.id,
+                    'itens': [
+                        {'produto_id': 2, 'quantidade': 2, 'preco_unitario': 7.50, 'preco_total': 15.00},
+                        {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
+                    ]
+                }
+            ]
+            
+            for dados_venda in vendas_exemplo:
+                venda = Venda(
+                    valor_total=dados_venda['valor_total'],
+                    desconto=dados_venda['desconto'],
+                    forma_pagamento=dados_venda['forma_pagamento'],
+                    observacoes=dados_venda['observacoes'],
+                    user_id=dados_venda['user_id']
+                )
+                db.session.add(venda)
+                db.session.flush()  # Para obter o ID da venda
+                
+                # Adicionar itens da venda
+                for item_data in dados_venda['itens']:
+                    item = ItemVenda(
+                        venda_id=venda.id,
+                        produto_id=item_data['produto_id'],
+                        quantidade=item_data['quantidade'],
+                        preco_unitario=item_data['preco_unitario'],
+                        preco_total=item_data['preco_total']
+                    )
+                    db.session.add(item)
+                    
+                    # Atualizar estoque
+                    estoque_items = Estoque.query.filter_by(produto_id=item_data['produto_id']).all()
+                    qtd_restante = item_data['quantidade']
+                    
+                    for estoque_item in estoque_items:
+                        if qtd_restante <= 0:
+                            break
+                        if estoque_item.quantidade >= qtd_restante:
+                            estoque_item.quantidade -= qtd_restante
+                            qtd_restante = 0
+                        else:
+                            qtd_restante -= estoque_item.quantidade
+                            estoque_item.quantidade = 0
+            
+            db.session.commit()
+            print("✅ Vendas de exemplo criadas!")
+        else:
+            print("✅ Produtos já existem no sistema!")
+            
     except Exception as e:
         print(f"❌ Error initializing database: {e}") 
