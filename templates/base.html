@@ -10,6 +10,7 @@
     
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#4CAF50">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Espetinho">
@@ -25,7 +26,7 @@
     <!-- CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css', v=2) }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css', v=3) }}" rel="stylesheet">
     
     {% block extra_css %}{% endblock %}
 </head>
@@ -131,7 +132,7 @@
 
     <!-- JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/app.js', v=2) }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v=3) }}"></script>
     
     {% block extra_js %}{% endblock %}
     
@@ -141,12 +142,24 @@
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js')
                     .then(function(registration) {
-                        console.log('ServiceWorker registration successful');
+                        console.log('ServiceWorker registration successful with scope:', registration.scope);
+                        
+                        // Verificar se há uma nova versão do Service Worker
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('Nova versão do Service Worker disponível');
+                                }
+                            });
+                        });
                     })
                     .catch(function(err) {
-                        console.log('ServiceWorker registration failed');
+                        console.log('ServiceWorker registration failed:', err);
                     });
             });
+        } else {
+            console.log('Service Worker não suportado neste navegador');
         }
     </script>
 </body>

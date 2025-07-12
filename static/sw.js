@@ -1,6 +1,6 @@
 // Service Worker para o Sistema Espetinho PWA
 
-const CACHE_NAME = 'espetinho-v1';
+const CACHE_NAME = 'espetinho-v2';
 const urlsToCache = [
     '/',
     '/static/css/style.css',
@@ -12,17 +12,23 @@ const urlsToCache = [
 
 // Instalar Service Worker
 self.addEventListener('install', event => {
+    console.log('Service Worker instalando...');
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
                 console.log('Cache aberto');
                 return cache.addAll(urlsToCache);
             })
+            .catch(error => {
+                console.log('Erro ao instalar cache:', error);
+            })
     );
+    self.skipWaiting();
 });
 
 // Ativar Service Worker
 self.addEventListener('activate', event => {
+    console.log('Service Worker ativando...');
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
@@ -33,19 +39,37 @@ self.addEventListener('activate', event => {
                     }
                 })
             );
+        }).then(() => {
+            return clients.claim();
         })
     );
 });
 
 // Interceptar requisições
 self.addEventListener('fetch', event => {
+    // Ignorar requisições chrome-extension e outras não suportadas
+    if (event.request.url.startsWith('chrome-extension://') || 
+        event.request.url.startsWith('chrome://') ||
+        event.request.url.startsWith('moz-extension://') ||
+        event.request.url.startsWith('edge://')) {
+        return;
+    }
+
+    // Ignorar requisições POST, PUT, DELETE
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request)
             .then(response => {
                 // Retornar do cache se disponível
                 if (response) {
+                    console.log('Cache hit:', event.request.url);
                     return response;
                 }
+
+                console.log('Cache miss:', event.request.url);
 
                 // Se não estiver no cache, buscar da rede
                 return fetch(event.request)
@@ -58,15 +82,24 @@ self.addEventListener('fetch', event => {
                         // Clonar a resposta
                         const responseToCache = response.clone();
 
-                        // Adicionar ao cache
-                        caches.open(CACHE_NAME)
-                            .then(cache => {
-                                cache.put(event.request, responseToCache);
-                            });
+                        // Adicionar ao cache apenas para recursos estáticos
+                        if (event.request.url.includes('/static/') || 
+                            event.request.url.includes('cdn.jsdelivr.net') ||
+                            event.request.url.includes('cdnjs.cloudflare.com')) {
+                            caches.open(CACHE_NAME)
+                                .then(cache => {
+                                    cache.put(event.request, responseToCache);
+                                    console.log('Adicionado ao cache:', event.request.url);
+                                })
+                                .catch(error => {
+                                    console.log('Erro ao adicionar ao cache:', error);
+                                });
+                        }
 
                         return response;
                     })
-                    .catch(() => {
+                    .catch(error => {
+                        console.log('Erro na requisição:', error);
                         // Se offline e não estiver no cache, retornar página offline
                         if (event.request.destination === 'document') {
                             return caches.match('/offline.html');
@@ -149,13 +182,4 @@ self.addEventListener('message', event => {
     if (event.data && event.data.type === 'GET_VERSION') {
         event.ports[0].postMessage({ version: CACHE_NAME });
     }
-});
-
-// Atualização automática do Service Worker
-self.addEventListener('install', event => {
-    self.skipWaiting();
-});
-
-self.addEventListener('activate', event => {
-    event.waitUntil(clients.claim());
 }); 
