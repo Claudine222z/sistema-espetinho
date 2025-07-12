@@ -43,6 +43,11 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     
+    # Headers anti-cache fortes
+    response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate')
+    response.headers.add('Pragma', 'no-cache')
+    response.headers.add('Expires', '0')
+    
     # Garantir que cookies de sessão funcionem em todos os hosts
     if 'Set-Cookie' in response.headers:
         # Remover domínio específico dos cookies se existir
@@ -866,6 +871,22 @@ def sincronizar_banco():
             'success': False,
             'error': str(e)
         })
+
+@app.route('/limpar-cache')
+def limpar_cache():
+    """Rota para forçar limpeza de cache"""
+    response = jsonify({
+        'success': True,
+        'message': 'Cache limpo! Recarregue a página.',
+        'timestamp': datetime.now().isoformat()
+    })
+    
+    # Headers anti-cache extremos
+    response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
+    response.headers.add('Pragma', 'no-cache')
+    response.headers.add('Expires', 'Thu, 01 Jan 1970 00:00:00 GMT')
+    
+    return response
  
 # Initialize database and create admin user
 def initialize_app():
