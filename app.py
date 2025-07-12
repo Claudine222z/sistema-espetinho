@@ -398,12 +398,25 @@ def estoque():
     estoque_data = []
     
     for produto in produtos:
-        estoque_atual = sum(e.quantidade for e in produto.estoque_items)
+        # Debug detalhado para cada produto
+        print(f"DEBUG: Produto '{produto.nome}' (ID: {produto.id})")
+        
+        # Buscar estoque diretamente
+        estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+        print(f"DEBUG: - Quantidade de estoque_items encontrados: {len(estoque_items)}")
+        
+        for item in estoque_items:
+            print(f"DEBUG: - Item estoque ID: {item.id}, Qtd: {item.quantidade}, Custo: {item.custo_unitario}")
+        
+        estoque_atual = sum(e.quantidade for e in estoque_items)
+        print(f"DEBUG: - Estoque total calculado: {estoque_atual}")
+        
         estoque_data.append({
             'produto': produto,
             'quantidade': estoque_atual
         })
-        print(f"DEBUG: {produto.nome} - Estoque: {estoque_atual}")
+        print(f"DEBUG: {produto.nome} - Estoque final: {estoque_atual}")
+        print("---")
     
     print(f"DEBUG: Total de produtos processados: {len(estoque_data)}")
     
