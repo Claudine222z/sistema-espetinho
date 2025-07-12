@@ -19,6 +19,30 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# Initialize database and create admin user
+with app.app_context():
+    try:
+        db.create_all()
+        print("✅ Database tables created successfully")
+        
+        # Create admin user if it doesn't exist
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            admin_user = User(
+                username='admin',
+                password_hash=generate_password_hash('admin123'),
+                nome='Administrador',
+                email='admin@espetinho.com',
+                role='admin'
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("✅ Usuário admin criado!")
+        else:
+            print("✅ Usuário admin já existe!")
+    except Exception as e:
+        print(f"❌ Error initializing database: {e}")
+
 # Modelos do banco de dados
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
