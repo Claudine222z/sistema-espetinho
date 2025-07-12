@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -25,16 +25,17 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 is_render = os.environ.get('RENDER', False)
 
 if is_render:
-    # Configuração específica para Render - compatível com Chrome
+    # Configuração específica para Render - máxima compatibilidade
     app.config['SERVER_NAME'] = None
     app.config['PREFERRED_URL_SCHEME'] = 'https'  # Render usa HTTPS
     app.config['SESSION_COOKIE_SECURE'] = True
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = False  # Permitir JavaScript acessar cookies
     app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Chrome requer 'None' para HTTPS
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
     app.config['SESSION_COOKIE_DOMAIN'] = None
     app.config['SESSION_COOKIE_PATH'] = '/'
-    print("🌐 Configuração RENDER ativada - compatível com Chrome")
+    app.config['SESSION_COOKIE_NAME'] = 'espetinho_session'
+    print("🌐 Configuração RENDER ativada - máxima compatibilidade")
 else:
     # Configuração para desenvolvimento local - permitir localhost e IP
     app.config['SERVER_NAME'] = None  # Aceita qualquer hostname
@@ -61,37 +62,43 @@ login_manager.login_view = 'login'
 # Middleware para adicionar headers CORS e resolver problemas de sessão
 @app.after_request
 def after_request(response):
-    # Headers CORS para compatibilidade com Chrome
+    # Headers CORS para máxima compatibilidade
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept,Origin')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,HEAD')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
+    response.headers.add('Access-Control-Max-Age', '86400')
     
-    # Headers de segurança para Chrome
+    # Headers de segurança mais permissivos
     response.headers.add('X-Content-Type-Options', 'nosniff')
     response.headers.add('X-Frame-Options', 'SAMEORIGIN')
     response.headers.add('X-XSS-Protection', '1; mode=block')
     
-    # Headers anti-cache fortes
-    response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
+    # Headers anti-cache ultra fortes
+    response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0, private')
     response.headers.add('Pragma', 'no-cache')
-    response.headers.add('Expires', '0')
+    response.headers.add('Expires', 'Thu, 01 Jan 1970 00:00:00 GMT')
+    response.headers.add('Last-Modified', datetime.now().strftime('%a, %d %b %Y %H:%M:%S GMT'))
     
     # Garantir que cookies de sessão funcionem em todos os hosts
     if 'Set-Cookie' in response.headers:
-        # Remover domínio específico dos cookies se existir
         cookies = response.headers.getlist('Set-Cookie')
         new_cookies = []
         for cookie in cookies:
+            # Remover especificações problemáticas
             if 'Domain=' in cookie:
-                # Remover especificação de domínio
                 cookie = cookie.split('; Domain=')[0]
-            # Garantir que SameSite seja configurado corretamente para Chrome
+            if 'Path=' not in cookie:
+                cookie += '; Path=/'
+            # Configurar SameSite adequadamente
             if 'SameSite=' not in cookie:
                 if is_render:
                     cookie += '; SameSite=None'
                 else:
                     cookie += '; SameSite=Lax'
+            # Garantir que Secure esteja presente no Render
+            if is_render and 'Secure' not in cookie:
+                cookie += '; Secure'
             new_cookies.append(cookie)
         response.headers.setlist('Set-Cookie', new_cookies)
     
@@ -209,6 +216,13 @@ def teste():
         'timestamp': datetime.now().isoformat(),
         'is_render': is_render
     })
+
+@app.route('/teste-chrome')
+def teste_chrome():
+    """Rota específica para testar compatibilidade com Chrome"""
+    response = make_response(render_template('teste_chrome.html'))
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Chrome - Sistema Espetinho</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 5px;
+        }
+        .btn:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste de Compatibilidade - Chrome</h1>
+        
+        <div class="status info">
+            <strong>Status:</strong> Página carregada com sucesso!
+        </div>
+        
+        <div class="status success">
+            <strong>✅ Compatibilidade:</strong> Se você está vendo esta página, o Chrome está funcionando!
+        </div>
+        
+        <h3>Informações do Sistema:</h3>
+        <ul>
+            <li><strong>URL:</strong> <span id="current-url"></span></li>
+            <li><strong>User Agent:</strong> <span id="user-agent"></span></li>
+            <li><strong>Cookies habilitados:</strong> <span id="cookies-enabled"></span></li>
+            <li><strong>JavaScript habilitado:</strong> <span id="js-enabled"></span></li>
+        </ul>
+        
+        <h3>Testes:</h3>
+        <div id="test-results"></div>
+        
+        <div style="margin-top: 30px;">
+            <a href="/" class="btn">🏠 Ir para o Sistema</a>
+            <a href="/login" class="btn">🔐 Fazer Login</a>
+            <a href="/teste" class="btn">📊 Teste API</a>
+        </div>
+    </div>
+
+    <script>
+        // Preencher informações
+        document.getElementById('current-url').textContent = window.location.href;
+        document.getElementById('user-agent').textContent = navigator.userAgent;
+        document.getElementById('cookies-enabled').textContent = navigator.cookieEnabled ? 'Sim' : 'Não';
+        document.getElementById('js-enabled').textContent = 'Sim';
+        
+        // Testes adicionais
+        const testResults = document.getElementById('test-results');
+        
+        // Teste de localStorage
+        try {
+            localStorage.setItem('test', 'ok');
+            localStorage.removeItem('test');
+            addTestResult('localStorage', '✅ Funcionando');
+        } catch (e) {
+            addTestResult('localStorage', '❌ Não disponível');
+        }
+        
+        // Teste de sessionStorage
+        try {
+            sessionStorage.setItem('test', 'ok');
+            sessionStorage.removeItem('test');
+            addTestResult('sessionStorage', '✅ Funcionando');
+        } catch (e) {
+            addTestResult('sessionStorage', '❌ Não disponível');
+        }
+        
+        // Teste de fetch
+        fetch('/teste')
+            .then(response => response.json())
+            .then(data => {
+                addTestResult('API Fetch', '✅ Funcionando');
+            })
+            .catch(error => {
+                addTestResult('API Fetch', '❌ Erro: ' + error.message);
+            });
+        
+        function addTestResult(test, result) {
+            const div = document.createElement('div');
+            div.className = 'status ' + (result.includes('✅') ? 'success' : 'error');
+            div.innerHTML = `<strong>${test}:</strong> ${result}`;
+            testResults.appendChild(div);
+        }
+    </script>
+</body>
+</html> 
