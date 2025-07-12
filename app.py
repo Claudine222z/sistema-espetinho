@@ -56,6 +56,24 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# Middleware para bloquear localhost e redirecionar para IP correto
+@app.before_request
+def block_localhost():
+    """Bloqueia localhost e redireciona para IP correto"""
+    host = request.host.lower()
+    
+    # Lista de hosts que devem ser bloqueados
+    blocked_hosts = ['127.0.0.1:5000', 'localhost:5000', '127.0.0.1', 'localhost']
+    
+    if any(blocked in host for blocked in blocked_hosts):
+        # Se for localhost, redireciona para IP correto
+        target_url = f'http://10.0.0.105:5000{request.path}'
+        if request.query_string:
+            target_url += f'?{request.query_string.decode()}'
+        
+        print(f"🚫 Localhost bloqueado: {host} -> {target_url}")
+        return redirect(target_url, code=302)
+
 # Middleware para adicionar headers CORS e resolver problemas de sessão
 @app.after_request
 def after_request(response):
@@ -181,10 +199,6 @@ def can_view_sales_details():
 # Rotas principais
 @app.route('/')
 def index():
-    # Redirecionar localhost para IP da rede
-    if request.host.startswith('127.0.0.1') or request.host.startswith('localhost'):
-        return redirect('http://10.0.0.105:5000', code=302)
-    
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template('index.html')
@@ -802,6 +816,18 @@ def service_worker():
 @app.route('/teste-camera')
 def teste_camera():
     return render_template('teste_camera_debug.html')
+
+@app.route('/teste-bloqueio-localhost')
+def teste_bloqueio_localhost():
+    """Rota para testar se o bloqueio do localhost está funcionando"""
+    return jsonify({
+        'success': True,
+        'message': 'Acesso permitido - não é localhost',
+        'host': request.host,
+        'url': request.url,
+        'ip_permitido': '10.0.0.105:5000',
+        'localhost_bloqueado': True
+    })
 
 @app.route('/teste-localhost-ip')
 def teste_localhost_ip():
