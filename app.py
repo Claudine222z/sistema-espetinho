@@ -617,6 +617,10 @@ def nova_venda():
     
     try:
         produtos = Produto.query.filter_by(ativo=True).all()
+        # Calcular estoque para cada produto
+        for produto in produtos:
+            estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+            produto.estoque = sum(e.quantidade for e in estoque_items)
         return render_template('nova_venda.html', produtos=produtos)
     except Exception as e:
         print(f"Erro ao carregar página de nova venda: {e}")
@@ -929,14 +933,12 @@ def teste_banco():
             'instance_path': app.instance_path,
             'working_directory': os.getcwd()
         }
-        
         # Verificar dados do banco
-    with app.app_context():
+        with app.app_context():
             produtos_count = Produto.query.count()
             estoque_count = Estoque.query.count()
             vendas_count = Venda.query.count()
             users_count = User.query.count()
-            
             # Listar produtos
             produtos = Produto.query.all()
             produtos_list = []
@@ -949,7 +951,6 @@ def teste_banco():
                     'ativo': p.ativo,
                     'estoque_total': estoque_total
                 })
-        
         return jsonify({
             'success': True,
             'db_info': db_info,
@@ -961,7 +962,6 @@ def teste_banco():
             },
             'produtos': produtos_list
         })
-        
     except Exception as e:
         return jsonify({
             'success': False,
@@ -971,7 +971,7 @@ def teste_banco():
                 'database_path': db_path,
                 'host': request.host
             }
-                })
+        })
 
 @app.route('/sincronizar-banco')
 def sincronizar_banco():
@@ -979,11 +979,9 @@ def sincronizar_banco():
     try:
         # Recriar todas as tabelas
         db.drop_all()
-            db.create_all()
-        
+        db.create_all()
         # Recriar dados de exemplo
         initialize_app()
-        
         return jsonify({
             'success': True,
             'message': 'Banco de dados sincronizado com sucesso!',
@@ -1034,28 +1032,26 @@ def initialize_app():
             print(f"📁 Pasta instance: {instance_path}")
             db.create_all()
             print("✅ Database tables created successfully")
-            
+
             # Create admin user if it doesn't exist
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
-            admin_user = User(
-                username='admin',
-                password_hash=generate_password_hash('admin123'),
-                nome='Administrador',
-                email='admin@espetinho.com',
-                role='admin'
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            print("✅ Usuário admin criado!")
-        else:
-            print("✅ Usuário admin já existe!")
-        
+            admin_user = User.query.filter_by(username='admin').first()
+            if not admin_user:
+                admin_user = User(
+                    username='admin',
+                    password_hash=generate_password_hash('admin123'),
+                    nome='Administrador',
+                    email='admin@espetinho.com',
+                    role='admin'
+                )
+                db.session.add(admin_user)
+                db.session.commit()
+                print("✅ Usuário admin criado!")
+            else:
+                print("✅ Usuário admin já existe!")
+
             # Criar dados de exemplo se não existirem produtos
             if Produto.query.count() == 0:
                 print("📦 Criando produtos de exemplo...")
-                
-                # Produtos de exemplo
                 produtos_exemplo = [
                     {
                         'nome': 'Espetinho de Carne',
@@ -1090,15 +1086,13 @@ def initialize_app():
                         'descricao': 'Água mineral 500ml'
                     }
                 ]
-                
                 for dados_produto in produtos_exemplo:
                     produto = Produto(**dados_produto)
                     produto.preco_sugerido = produto.calcular_preco_sugerido()
                     db.session.add(produto)
-                
                 db.session.commit()
                 print("✅ Produtos de exemplo criados!")
-                
+
                 # Adicionar estoque inicial
                 print("📦 Adicionando estoque inicial...")
                 produtos = Produto.query.all()
@@ -1109,10 +1103,9 @@ def initialize_app():
                         custo_unitario=produto.preco_custo
                     )
                     db.session.add(estoque)
-                
                 db.session.commit()
                 print("✅ Estoque inicial adicionado!")
-                
+
                 # Criar algumas vendas de exemplo
                 print("💰 Criando vendas de exemplo...")
                 vendas_exemplo = [
@@ -1140,7 +1133,6 @@ def initialize_app():
                         ]
                     }
                 ]
-                
                 for dados_venda in vendas_exemplo:
                     venda = Venda(
                         valor_total=dados_venda['valor_total'],
@@ -1151,8 +1143,6 @@ def initialize_app():
                     )
                     db.session.add(venda)
                     db.session.flush()  # Para obter o ID da venda
-                    
-                    # Adicionar itens da venda
                     for item_data in dados_venda['itens']:
                         item = ItemVenda(
                             venda_id=venda.id,
@@ -1162,11 +1152,9 @@ def initialize_app():
                             preco_total=item_data['preco_total']
                         )
                         db.session.add(item)
-                        
                         # Atualizar estoque
                         estoque_items = Estoque.query.filter_by(produto_id=item_data['produto_id']).all()
                         qtd_restante = item_data['quantidade']
-                        
                         for estoque_item in estoque_items:
                             if qtd_restante <= 0:
                                 break
@@ -1176,29 +1164,29 @@ def initialize_app():
                             else:
                                 qtd_restante -= estoque_item.quantidade
                                 estoque_item.quantidade = 0
-                    
                     db.session.commit()
-                    print("✅ Vendas de exemplo criadas!")
+                print("✅ Vendas de exemplo criadas!")
             else:
                 print("✅ Produtos já existem no sistema!")
-                
         except Exception as e:
             print(f"❌ Error initializing database: {e}")
 
 # Executar inicialização apenas uma vez
 initialize_app()
 
-if __name__ == '__main__':
-    print("🚀 Sistema Espetinho iniciado!")
-        print("👤 Login: admin / admin123")
-    
-    if is_render:
-        print("🌐 Render: Acesse apenas o domínio fornecido pelo Render")
-        # No Render, não precisa especificar host/port - ele usa as variáveis de ambiente
-        app.run(debug=False)  # Render não usa debug mode
-    else:
-        print("🌐 Local: Acesse apenas http://10.0.0.105:5000")
-        app.run(debug=True, host='10.0.0.105', port=5000, use_reloader=False) 
+@app.route('/teste-auth')
+@login_required
+def teste_auth():
+    """Rota para testar autenticação e permissões"""
+    return jsonify({
+        'success': True,
+        'user_id': current_user.id,
+        'username': current_user.username,
+        'nome': current_user.nome,
+        'role': current_user.role,
+        'is_authenticated': current_user.is_authenticated,
+        'can_access_reports': current_user.role in ['admin', 'gerente']
+    })
 
 @app.route('/debug/sistema')
 @login_required
@@ -1211,7 +1199,6 @@ def debug_sistema():
         total_vendas = Venda.query.count()
         total_itens_venda = ItemVenda.query.count()
         total_estoque_items = Estoque.query.count()
-        
         # Verificar últimas vendas
         ultimas_vendas = Venda.query.order_by(Venda.data_venda.desc()).limit(5).all()
         vendas_info = []
@@ -1224,7 +1211,6 @@ def debug_sistema():
                 'user_nome': venda.user.nome if venda.user else 'N/A',
                 'itens_count': len(venda.itens)
             })
-        
         # Verificar produtos com estoque
         produtos_estoque = []
         produtos = Produto.query.filter_by(ativo=True).all()
@@ -1237,7 +1223,6 @@ def debug_sistema():
                 'estoque_total': estoque_total,
                 'preco_padrao': float(produto.preco_padrao)
             })
-        
         return jsonify({
             'success': True,
             'contadores': {
@@ -1252,9 +1237,19 @@ def debug_sistema():
             'database_path': db_path,
             'is_render': is_render
         })
-        
     except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
-        }) 
+        })
+
+if __name__ == '__main__':
+    print("🚀 Sistema Espetinho iniciado!")
+    print("👤 Login: admin / admin123")
+    if is_render:
+        print("🌐 Render: Acesse apenas o domínio fornecido pelo Render")
+        # No Render, não precisa especificar host/port - ele usa as variáveis de ambiente
+        app.run(debug=False)  # Render não usa debug mode
+    else:
+        print("🌐 Local: Acesse apenas http://10.0.0.105:5000")
+        app.run(debug=True, host='10.0.0.105', port=5000, use_reloader=False) 
