@@ -1,6 +1,6 @@
 // Service Worker para o Sistema Espetinho PWA
 
-const CACHE_NAME = 'espetinho-v2';
+const CACHE_NAME = 'espetinho-v3-chrome-fix';
 const urlsToCache = [
     '/',
     '/static/css/style.css',
@@ -45,7 +45,7 @@ self.addEventListener('activate', event => {
     );
 });
 
-// Interceptar requisições
+// Interceptar requisições - versão simplificada para evitar problemas
 self.addEventListener('fetch', event => {
     // Ignorar requisições chrome-extension e outras não suportadas
     if (event.request.url.startsWith('chrome-extension://') || 
@@ -60,32 +60,49 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Retornar do cache se disponível
-                if (response) {
-                    console.log('Cache hit:', event.request.url);
-                    return response;
-                }
+    // Ignorar requisições de navegação (páginas) - deixar passar direto
+    if (event.request.mode === 'navigate') {
+        return;
+    }
 
-                console.log('Cache miss:', event.request.url);
+    // Ignorar requisições de API e formulários
+    if (event.request.url.includes('/api/') || 
+        event.request.url.includes('/login') ||
+        event.request.url.includes('/logout') ||
+        event.request.url.includes('/venda/') ||
+        event.request.url.includes('/estoque/') ||
+        event.request.url.includes('/produto/')) {
+        return;
+    }
 
-                // Se não estiver no cache, buscar da rede
-                return fetch(event.request)
-                    .then(response => {
-                        // Verificar se a resposta é válida
-                        if (!response || response.status !== 200 || response.type !== 'basic') {
-                            return response;
-                        }
+    // Apenas cachear recursos estáticos
+    if (event.request.url.includes('/static/') || 
+        event.request.url.includes('cdn.jsdelivr.net') ||
+        event.request.url.includes('cdnjs.cloudflare.com')) {
+        
+        event.respondWith(
+            caches.match(event.request)
+                .then(response => {
+                    // Retornar do cache se disponível
+                    if (response) {
+                        console.log('Cache hit:', event.request.url);
+                        return response;
+                    }
 
-                        // Clonar a resposta
-                        const responseToCache = response.clone();
+                    console.log('Cache miss:', event.request.url);
 
-                        // Adicionar ao cache apenas para recursos estáticos
-                        if (event.request.url.includes('/static/') || 
-                            event.request.url.includes('cdn.jsdelivr.net') ||
-                            event.request.url.includes('cdnjs.cloudflare.com')) {
+                    // Se não estiver no cache, buscar da rede
+                    return fetch(event.request)
+                        .then(response => {
+                            // Verificar se a resposta é válida
+                            if (!response || response.status !== 200) {
+                                return response;
+                            }
+
+                            // Clonar a resposta
+                            const responseToCache = response.clone();
+
+                            // Adicionar ao cache
                             caches.open(CACHE_NAME)
                                 .then(cache => {
                                     cache.put(event.request, responseToCache);
@@ -94,19 +111,16 @@ self.addEventListener('fetch', event => {
                                 .catch(error => {
                                     console.log('Erro ao adicionar ao cache:', error);
                                 });
-                        }
 
-                        return response;
-                    })
-                    .catch(error => {
-                        console.log('Erro na requisição:', error);
-                        // Se offline e não estiver no cache, retornar página offline
-                        if (event.request.destination === 'document') {
-                            return caches.match('/offline.html');
-                        }
-                    });
-            })
-    );
+                            return response;
+                        })
+                        .catch(error => {
+                            console.log('Erro na requisição:', error);
+                            return new Response('Erro de rede', { status: 503 });
+                        });
+                })
+        );
+    }
 });
 
 // Sincronização em background
