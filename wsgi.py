@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 try:
     from app import app, db
+    from render_config import apply_render_config
     
     # Initialize database and create admin user
     with app.app_context():
@@ -42,12 +43,8 @@ try:
         except Exception as e:
             print(f"❌ Error initializing database: {e}")
     
-    # Configure app for production
-    app.config['SERVER_NAME'] = None
-    app.config['PREFERRED_URL_SCHEME'] = 'https'
-    app.config['SESSION_COOKIE_SECURE'] = True
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    # Apply Render-specific configuration
+    apply_render_config(app)
     
     # Export the app for Gunicorn
     application = app

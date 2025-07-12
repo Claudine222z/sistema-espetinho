@@ -3,7 +3,7 @@ services:
     name: sistema-espetinho
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4
+    startCommand: gunicorn wsgi:application --bind 10.0.0.105:$PORT --workers 2 --threads 4
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.16
@@ -12,6 +12,8 @@ services:
       - key: FLASK_DEBUG
         value: 0
       - key: HOST
-        value: 0.0.0.0
+        value: 10.0.0.105
       - key: PORT
-        value: 10000 
+        value: 5000
+      - key: SERVER_NAME
+        value: 10.0.0.105:5000 

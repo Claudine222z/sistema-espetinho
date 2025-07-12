@@ -15,14 +15,30 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///espetinho.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configurações para funcionar em todas as interfaces
-app.config['SERVER_NAME'] = None  # Permite acesso por qualquer hostname
-app.config['PREFERRED_URL_SCHEME'] = 'http'
+# Detectar se estamos no Render (produção) ou local
+is_render = os.environ.get('RENDER', False)
+is_production = os.environ.get('FLASK_ENV') == 'production'
 
-# Configurações adicionais para resolver problemas de host
-app.config['SESSION_COOKIE_SECURE'] = False
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+if is_render or is_production:
+    # Configuração para Render/Produção - usar IP específico
+    app.config['SERVER_NAME'] = '10.0.0.105:5000'
+    app.config['PREFERRED_URL_SCHEME'] = 'http'
+    app.config['SESSION_COOKIE_SECURE'] = False
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+    app.config['HOST'] = '10.0.0.105'
+    app.config['PORT'] = 5000
+    print("🌐 Configuração de PRODUÇÃO ativada - IP: 10.0.0.105:5000")
+else:
+    # Configuração para desenvolvimento local
+    app.config['SERVER_NAME'] = None  # Permite acesso por qualquer hostname
+    app.config['PREFERRED_URL_SCHEME'] = 'http'
+    app.config['SESSION_COOKIE_SECURE'] = False
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+    print("🌐 Configuração de DESENVOLVIMENTO ativada - localhost e IP")
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -841,7 +857,15 @@ def teste_conexao():
         'method': request.method,
         'remote_addr': request.remote_addr,
         'user_agent': request.headers.get('User-Agent', 'N/A'),
-        'headers': dict(request.headers)
+        'headers': dict(request.headers),
+        'app_config': {
+            'server_name': app.config.get('SERVER_NAME'),
+            'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
+            'host': app.config.get('HOST'),
+            'port': app.config.get('PORT'),
+            'is_render': os.environ.get('RENDER', False),
+            'is_production': os.environ.get('FLASK_ENV') == 'production'
+        }
     })
 
 @app.route('/diagnostico')
