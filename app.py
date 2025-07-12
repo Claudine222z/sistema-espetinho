@@ -20,16 +20,14 @@ is_render = os.environ.get('RENDER', False)
 is_production = os.environ.get('FLASK_ENV') == 'production'
 
 if is_render or is_production:
-    # Configuração para Render/Produção - usar IP específico
-    app.config['SERVER_NAME'] = '10.0.0.105:5000'
-    app.config['PREFERRED_URL_SCHEME'] = 'http'
-    app.config['SESSION_COOKIE_SECURE'] = False
+    # Configuração para Render/Produção - usar configurações do Render
+    app.config['SERVER_NAME'] = None  # Permitir qualquer hostname
+    app.config['PREFERRED_URL_SCHEME'] = 'https'  # Render usa HTTPS
+    app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS requer cookies seguros
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-    app.config['HOST'] = '10.0.0.105'
-    app.config['PORT'] = 5000
-    print("🌐 Configuração de PRODUÇÃO ativada - IP: 10.0.0.105:5000")
+    print("🌐 Configuração de PRODUÇÃO ativada - Render")
 else:
     # Configuração para desenvolvimento local
     app.config['SERVER_NAME'] = None  # Permite acesso por qualquer hostname
@@ -164,6 +162,23 @@ def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template('index.html')
+
+@app.route('/status')
+def status():
+    """Rota para verificar status do sistema"""
+    return jsonify({
+        'status': 'online',
+        'timestamp': datetime.now().isoformat(),
+        'environment': 'production' if os.environ.get('RENDER') else 'development',
+        'host': request.host,
+        'url': request.url,
+        'config': {
+            'server_name': app.config.get('SERVER_NAME'),
+            'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
+            'session_cookie_secure': app.config.get('SESSION_COOKIE_SECURE'),
+            'debug': app.debug
+        }
+    })
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

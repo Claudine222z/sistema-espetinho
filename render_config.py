@@ -8,11 +8,11 @@ import os
 
 # Configurações específicas para Render
 RENDER_CONFIG = {
-    'HOST': '10.0.0.105',
+    'HOST': '0.0.0.0',  # Permitir qualquer host
     'PORT': 5000,
-    'SERVER_NAME': '10.0.0.105:5000',
-    'PREFERRED_URL_SCHEME': 'http',
-    'SESSION_COOKIE_SECURE': False,
+    'SERVER_NAME': None,  # Não forçar nome do servidor
+    'PREFERRED_URL_SCHEME': 'https',  # Render usa HTTPS
+    'SESSION_COOKIE_SECURE': True,  # HTTPS requer cookies seguros
     'SESSION_COOKIE_HTTPONLY': True,
     'SESSION_COOKIE_SAMESITE': 'Lax',
     'FLASK_ENV': 'production',
