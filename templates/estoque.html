@@ -2,6 +2,33 @@
 
 {% block title %}Estoque - Sistema Espetinho{% endblock %}
 
+{% block extra_js %}
+<script>
+let refreshCountdown = 30;
+
+// Atualizar contador
+setInterval(function() {
+    refreshCountdown--;
+    const indicator = document.getElementById('refreshIndicator');
+    if (indicator) {
+        indicator.textContent = `Atualiza em ${refreshCountdown}s`;
+    }
+    
+    if (refreshCountdown <= 0) {
+        refreshCountdown = 30;
+        location.reload();
+    }
+}, 1000);
+
+// Refresh quando voltar para a página
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        location.reload();
+    }
+});
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
@@ -9,8 +36,12 @@
         <div>
             <h1 class="h3 mb-0">Controle de Estoque</h1>
             <p class="text-muted">Gerencie o estoque dos seus produtos</p>
+            <small class="text-info" id="refreshIndicator">Atualiza em 30s</small>
         </div>
         <div>
+            <button type="button" class="btn btn-outline-primary me-2" onclick="location.reload()">
+                <i class="fas fa-sync-alt me-2"></i>Atualizar
+            </button>
             <a href="{{ url_for('adicionar_estoque') }}" class="btn btn-success">
                 <i class="fas fa-plus me-2"></i>Adicionar Estoque
             </a>

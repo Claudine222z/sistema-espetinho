@@ -279,7 +279,16 @@ function atualizarTopProdutos(produtos) {
     const container = document.getElementById('topProdutos');
     
     if (!produtos || produtos.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center">Nenhum produto vendido no período</p>';
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Nenhum produto vendido no período</h5>
+                <p class="text-muted">Faça algumas vendas para ver os produtos mais vendidos aqui!</p>
+                <a href="{{ url_for('nova_venda') }}" class="btn btn-success">
+                    <i class="fas fa-plus me-2"></i>Nova Venda
+                </a>
+            </div>
+        `;
         return;
     }
     
