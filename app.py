@@ -36,7 +36,7 @@ if is_render:
     app.config['SESSION_COOKIE_PATH'] = '/'
     print("🌐 Configuração RENDER ativada - usando apenas domínio do Render")
 else:
-    # Configuração para desenvolvimento local - usar apenas IP específico
+    # Configuração para desenvolvimento local - permitir localhost e IP
     app.config['SERVER_NAME'] = None  # Aceita qualquer hostname
     app.config['PREFERRED_URL_SCHEME'] = 'http'  # Usa HTTP por padrão
     app.config['SESSION_COOKIE_SECURE'] = False  # Não força HTTPS
@@ -49,30 +49,14 @@ else:
     # Configurações adicionais para resolver problema localhost vs IP
     app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Desabilita cache de arquivos estáticos
     app.config['TEMPLATES_AUTO_RELOAD'] = True  # Recarrega templates automaticamente
-    print("🌐 Configuração LOCAL ativada - usando apenas IP 10.0.0.105")
+    print("🌐 Configuração LOCAL ativada - compatível com localhost e IP")
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Middleware para bloquear localhost e redirecionar para IP correto
-@app.before_request
-def block_localhost():
-    """Bloqueia localhost e redireciona para IP correto"""
-    host = request.host.lower()
-    
-    # Lista de hosts que devem ser bloqueados
-    blocked_hosts = ['127.0.0.1:5000', 'localhost:5000', '127.0.0.1', 'localhost']
-    
-    if any(blocked in host for blocked in blocked_hosts):
-        # Se for localhost, redireciona para IP correto
-        target_url = f'http://10.0.0.105:5000{request.path}'
-        if request.query_string:
-            target_url += f'?{request.query_string.decode()}'
-        
-        print(f"🚫 Localhost bloqueado: {host} -> {target_url}")
-        return redirect(target_url, code=302)
+# Middleware removido - agora localhost e IP funcionam igualmente
 
 # Middleware para adicionar headers CORS e resolver problemas de sessão
 @app.after_request
@@ -615,10 +599,10 @@ def api_produtos():
 def api_produto(id):
     produto = Produto.query.get_or_404(id)
     return jsonify({
-            'id': produto.id,
-            'nome': produto.nome,
-            'tipo': produto.tipo,
-            'preco_padrao': produto.preco_padrao,
+        'id': produto.id,
+        'nome': produto.nome,
+        'tipo': produto.tipo,
+        'preco_padrao': produto.preco_padrao,
         'descricao': produto.descricao
     })
 
