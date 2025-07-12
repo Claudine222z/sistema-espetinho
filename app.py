@@ -11,7 +11,12 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'sua-chave-secreta-aqui')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///espetinho.db'
+# Usar caminho absoluto para o banco de dados
+instance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+if not os.path.exists(instance_path):
+    os.makedirs(instance_path)
+db_path = os.path.join(instance_path, 'espetinho.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configuração unificada - funciona em qualquer ambiente
@@ -779,10 +784,69 @@ def teste_sessao():
         'cookies': dict(request.cookies)
     })
 
+@app.route('/teste-banco')
+def teste_banco():
+    """Rota para testar o banco de dados"""
+    try:
+        # Verificar informações do banco
+        db_info = {
+            'database_uri': app.config['SQLALCHEMY_DATABASE_URI'],
+            'database_path': db_path,
+            'database_exists': os.path.exists(db_path),
+            'database_size': os.path.getsize(db_path) if os.path.exists(db_path) else 0,
+            'host': request.host,
+            'url': request.url
+        }
+        
+        # Verificar dados do banco
+        with app.app_context():
+            produtos_count = Produto.query.count()
+            estoque_count = Estoque.query.count()
+            vendas_count = Venda.query.count()
+            users_count = User.query.count()
+            
+            # Listar produtos
+            produtos = Produto.query.all()
+            produtos_list = []
+            for p in produtos:
+                estoque_items = Estoque.query.filter_by(produto_id=p.id).all()
+                estoque_total = sum(e.quantidade for e in estoque_items)
+                produtos_list.append({
+                    'id': p.id,
+                    'nome': p.nome,
+                    'ativo': p.ativo,
+                    'estoque_total': estoque_total
+                })
+        
+        return jsonify({
+            'success': True,
+            'db_info': db_info,
+            'counts': {
+                'produtos': produtos_count,
+                'estoque': estoque_count,
+                'vendas': vendas_count,
+                'users': users_count
+            },
+            'produtos': produtos_list
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'db_info': {
+                'database_uri': app.config['SQLALCHEMY_DATABASE_URI'],
+                'database_path': db_path,
+                'host': request.host
+            }
+        })
+
 # Initialize database and create admin user
 def initialize_app():
     with app.app_context():
         try:
+            print(f"🗄️  Usando banco de dados: {db_path}")
+            print(f"📁 Pasta instance: {instance_path}")
             db.create_all()
             print("✅ Database tables created successfully")
             
