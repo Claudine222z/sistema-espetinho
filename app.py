@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -21,18 +21,33 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Não força HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+app.config['SESSION_COOKIE_DOMAIN'] = None  # Permite qualquer domínio
+app.config['SESSION_COOKIE_PATH'] = '/'
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Middleware para adicionar headers CORS
+# Middleware para adicionar headers CORS e resolver problemas de sessão
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    
+    # Garantir que cookies de sessão funcionem em todos os hosts
+    if 'Set-Cookie' in response.headers:
+        # Remover domínio específico dos cookies se existir
+        cookies = response.headers.getlist('Set-Cookie')
+        new_cookies = []
+        for cookie in cookies:
+            if 'Domain=' in cookie:
+                # Remover especificação de domínio
+                cookie = cookie.split('; Domain=')[0]
+            new_cookies.append(cookie)
+        response.headers.setlist('Set-Cookie', new_cookies)
+    
     return response
 
 # Modelos do banco de dados
@@ -146,7 +161,9 @@ def login():
         user = User.query.filter_by(username=username).first()
         
         if user and check_password_hash(user.password_hash, password):
-            login_user(user)
+            login_user(user, remember=True)  # Forçar remember=True
+            # Garantir que a sessão seja salva
+            session.permanent = True
             return redirect(url_for('dashboard'))
         else:
             flash('Usuário ou senha incorretos!', 'error')
@@ -749,6 +766,18 @@ def service_worker():
 @app.route('/teste-camera')
 def teste_camera():
     return render_template('teste_camera_debug.html')
+
+@app.route('/teste-sessao')
+def teste_sessao():
+    """Rota para testar se a sessão está funcionando"""
+    return jsonify({
+        'session_id': session.get('_id', 'Não definido'),
+        'user_authenticated': current_user.is_authenticated,
+        'user_id': current_user.id if current_user.is_authenticated else None,
+        'host': request.host,
+        'url': request.url,
+        'cookies': dict(request.cookies)
+    })
 
 # Initialize database and create admin user
 def initialize_app():
