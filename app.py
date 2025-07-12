@@ -25,16 +25,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 is_render = os.environ.get('RENDER', False)
 
 if is_render:
-    # Configuração específica para Render - usar apenas o domínio do Render
+    # Configuração específica para Render - compatível com Chrome
     app.config['SERVER_NAME'] = None
     app.config['PREFERRED_URL_SCHEME'] = 'https'  # Render usa HTTPS
     app.config['SESSION_COOKIE_SECURE'] = True
     app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Chrome requer 'None' para HTTPS
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
     app.config['SESSION_COOKIE_DOMAIN'] = None
     app.config['SESSION_COOKIE_PATH'] = '/'
-    print("🌐 Configuração RENDER ativada - usando apenas domínio do Render")
+    print("🌐 Configuração RENDER ativada - compatível com Chrome")
 else:
     # Configuração para desenvolvimento local - permitir localhost e IP
     app.config['SERVER_NAME'] = None  # Aceita qualquer hostname
@@ -61,12 +61,19 @@ login_manager.login_view = 'login'
 # Middleware para adicionar headers CORS e resolver problemas de sessão
 @app.after_request
 def after_request(response):
+    # Headers CORS para compatibilidade com Chrome
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    
+    # Headers de segurança para Chrome
+    response.headers.add('X-Content-Type-Options', 'nosniff')
+    response.headers.add('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.add('X-XSS-Protection', '1; mode=block')
     
     # Headers anti-cache fortes
-    response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate')
+    response.headers.add('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0')
     response.headers.add('Pragma', 'no-cache')
     response.headers.add('Expires', '0')
     
@@ -79,6 +86,12 @@ def after_request(response):
             if 'Domain=' in cookie:
                 # Remover especificação de domínio
                 cookie = cookie.split('; Domain=')[0]
+            # Garantir que SameSite seja configurado corretamente para Chrome
+            if 'SameSite=' not in cookie:
+                if is_render:
+                    cookie += '; SameSite=None'
+                else:
+                    cookie += '; SameSite=Lax'
             new_cookies.append(cookie)
         response.headers.setlist('Set-Cookie', new_cookies)
     
@@ -186,6 +199,16 @@ def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template('index.html')
+
+@app.route('/teste')
+def teste():
+    """Rota simples para testar se o app está funcionando"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'Sistema Espetinho funcionando!',
+        'timestamp': datetime.now().isoformat(),
+        'is_render': is_render
+    })
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1248,7 +1271,7 @@ if __name__ == '__main__':
     print("👤 Login: admin / admin123")
     if is_render:
         print("🌐 Render: Acesse apenas o domínio fornecido pelo Render")
-        # No Render, não precisa especificar host/port - ele usa as variáveis de ambiente
+        # No Render, não especificar host/port - ele usa as variáveis de ambiente
         app.run(debug=False)  # Render não usa debug mode
     else:
         print("🌐 Local: Acesse apenas http://10.0.0.105:5000")
