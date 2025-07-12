@@ -248,31 +248,107 @@ function gerarRelatorio() {
         return;
     }
     
+    // Mostrar loading
+    document.getElementById('totalVendas').textContent = 'Carregando...';
+    document.getElementById('qtdVendas').textContent = '...';
+    document.getElementById('lucroEstimado').textContent = 'Carregando...';
+    document.getElementById('ticketMedio').textContent = 'Carregando...';
+    
     // Buscar dados do relatório
     fetch(`/api/relatorio/vendas?data_inicio=${dataInicio}&data_fim=${dataFim}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            atualizarEstatisticas(data);
-            // Aqui você pode adicionar a atualização dos gráficos
+            if (data.success) {
+                atualizarEstatisticas(data);
+                atualizarTabelaVendas(data.vendas);
+            } else {
+                throw new Error(data.error || 'Erro desconhecido');
+            }
         })
         .catch(error => {
             console.error('Erro ao gerar relatório:', error);
-            alert('Erro ao gerar relatório');
+            alert('Erro ao gerar relatório: ' + error.message);
+            
+            // Resetar estatísticas
+            document.getElementById('totalVendas').textContent = 'R$ 0,00';
+            document.getElementById('qtdVendas').textContent = '0';
+            document.getElementById('lucroEstimado').textContent = 'R$ 0,00';
+            document.getElementById('ticketMedio').textContent = 'R$ 0,00';
+            
+            // Limpar tabela
+            document.querySelector('#tabelaVendas tbody').innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">
+                        Erro ao carregar dados
+                    </td>
+                </tr>
+            `;
         });
 }
 
 function atualizarEstatisticas(data) {
-    document.getElementById('totalVendas').textContent = `R$ ${data.total_vendas.toFixed(2)}`;
-    document.getElementById('qtdVendas').textContent = data.qtd_vendas;
-    document.getElementById('lucroEstimado').textContent = `R$ ${data.lucro_estimado.toFixed(2)}`;
-    document.getElementById('ticketMedio').textContent = `R$ ${data.ticket_medio.toFixed(2)}`;
+    // Função auxiliar para formatar valores com segurança
+    function formatarValor(valor) {
+        if (valor === null || valor === undefined || isNaN(valor)) {
+            return '0.00';
+        }
+        return parseFloat(valor).toFixed(2);
+    }
+    
+    document.getElementById('totalVendas').textContent = `R$ ${formatarValor(data.total_vendas)}`;
+    document.getElementById('qtdVendas').textContent = data.qtd_vendas || 0;
+    document.getElementById('lucroEstimado').textContent = `R$ ${formatarValor(data.lucro_estimado)}`;
+    document.getElementById('ticketMedio').textContent = `R$ ${formatarValor(data.ticket_medio)}`;
     
     // Atualizar produtos mais vendidos
-    atualizarTopProdutos(data.top_produtos);
+    atualizarTopProdutos(data.top_produtos || []);
     
     // Atualizar gráficos
-    atualizarGraficoVendas(data.vendas_por_dia);
-    atualizarGraficoPagamento(data.vendas_por_pagamento);
+    atualizarGraficoVendas(data.vendas_por_dia || {});
+    atualizarGraficoPagamento(data.vendas_por_pagamento || {});
+}
+
+function atualizarTabelaVendas(vendas) {
+    const tbody = document.querySelector('#tabelaVendas tbody');
+    
+    if (!vendas || vendas.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted">
+                    Nenhuma venda encontrada no período selecionado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Função auxiliar para formatar valores com segurança
+    function formatarValor(valor) {
+        if (valor === null || valor === undefined || isNaN(valor)) {
+            return '0.00';
+        }
+        return parseFloat(valor).toFixed(2);
+    }
+    
+    let html = '';
+    vendas.forEach(venda => {
+        html += `
+            <tr>
+                <td>${venda.data || 'N/A'}</td>
+                <td>R$ ${formatarValor(venda.valor_total)}</td>
+                <td>R$ ${formatarValor(venda.desconto)}</td>
+                <td>${venda.forma_pagamento || 'N/A'}</td>
+                <td>${venda.vendedor || 'N/A'}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
 }
 
 function atualizarTopProdutos(produtos) {
@@ -292,9 +368,19 @@ function atualizarTopProdutos(produtos) {
         return;
     }
     
+    // Função auxiliar para formatar valores com segurança
+    function formatarValor(valor) {
+        if (valor === null || valor === undefined || isNaN(valor)) {
+            return '0.00';
+        }
+        return parseFloat(valor).toFixed(2);
+    }
+    
     let html = '<div class="row">';
     produtos.forEach((produto, index) => {
         const [nome, dados] = produto;
+        if (!dados) return; // Pular se dados estiver undefined
+        
         html += `
             <div class="col-md-6 col-lg-4 mb-3">
                 <div class="card border-${index === 0 ? 'warning' : 'light'} h-100">
@@ -305,10 +391,10 @@ function atualizarTopProdutos(produtos) {
                               index === 2 ? '<i class="fas fa-medal text-bronze fa-2x"></i>' :
                               '<i class="fas fa-box text-muted fa-2x"></i>'}
                         </div>
-                        <h6 class="card-title">${nome}</h6>
+                        <h6 class="card-title">${nome || 'Produto sem nome'}</h6>
                         <p class="card-text">
-                            <strong>${dados.quantidade}</strong> unidades<br>
-                            <small class="text-muted">R$ ${dados.total.toFixed(2)}</small>
+                            <strong>${dados.quantidade || 0}</strong> unidades<br>
+                            <small class="text-muted">R$ ${formatarValor(dados.total)}</small>
                         </p>
                     </div>
                 </div>
