@@ -531,55 +531,97 @@ def vendas():
 @login_required
 def nova_venda():
     if request.method == 'POST':
-        data = request.get_json()
-        
-        # Criar venda
-        venda = Venda(
-            valor_total=data['valor_total'],
-            desconto=data.get('desconto', 0),
-            forma_pagamento=data.get('forma_pagamento', 'dinheiro'),
-            observacoes=data.get('observacoes', ''),
-            user_id=current_user.id
-        )
-        
-        db.session.add(venda)
-        db.session.flush()  # Para obter o ID da venda
-        
-        # Adicionar itens da venda
-        for item_data in data['itens']:
-            item = ItemVenda(
-                venda_id=venda.id,
-                produto_id=item_data['produto_id'],
-                quantidade=item_data['quantidade'],
-                preco_unitario=item_data['preco_unitario'],
-                preco_total=item_data['preco_total']
+        try:
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Dados da venda não fornecidos'
+                }), 400
+            
+            # Validar dados obrigatórios
+            if 'valor_total' not in data or 'itens' not in data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Dados obrigatórios não fornecidos'
+                }), 400
+            
+            if not data['itens']:
+                return jsonify({
+                    'success': False,
+                    'error': 'Nenhum item na venda'
+                }), 400
+            
+            # Criar venda
+            venda = Venda(
+                valor_total=data['valor_total'],
+                desconto=data.get('desconto', 0),
+                forma_pagamento=data.get('forma_pagamento', 'dinheiro'),
+                observacoes=data.get('observacoes', ''),
+                user_id=current_user.id
             )
-            db.session.add(item)
             
-            # Atualizar estoque
-            estoque_items = Estoque.query.filter_by(produto_id=item_data['produto_id']).all()
-            qtd_restante = item_data['quantidade']
+            db.session.add(venda)
+            db.session.flush()  # Para obter o ID da venda
             
-            for estoque_item in estoque_items:
-                if qtd_restante <= 0:
-                    break
-                if estoque_item.quantidade >= qtd_restante:
-                    estoque_item.quantidade -= qtd_restante
-                    qtd_restante = 0
-                else:
-                    qtd_restante -= estoque_item.quantidade
-                    estoque_item.quantidade = 0
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'venda_id': venda.id,
-            'message': 'Venda registrada com sucesso!'
-        })
+            # Adicionar itens da venda
+            for item_data in data['itens']:
+                # Verificar se o produto existe
+                produto = Produto.query.get(item_data['produto_id'])
+                if not produto:
+                    db.session.rollback()
+                    return jsonify({
+                        'success': False,
+                        'error': f'Produto com ID {item_data["produto_id"]} não encontrado'
+                    }), 400
+                
+                item = ItemVenda(
+                    venda_id=venda.id,
+                    produto_id=item_data['produto_id'],
+                    quantidade=item_data['quantidade'],
+                    preco_unitario=item_data['preco_unitario'],
+                    preco_total=item_data['preco_total']
+                )
+                db.session.add(item)
+                
+                # Atualizar estoque
+                estoque_items = Estoque.query.filter_by(produto_id=item_data['produto_id']).all()
+                qtd_restante = item_data['quantidade']
+                
+                for estoque_item in estoque_items:
+                    if qtd_restante <= 0:
+                        break
+                    if estoque_item.quantidade >= qtd_restante:
+                        estoque_item.quantidade -= qtd_restante
+                        qtd_restante = 0
+                    else:
+                        qtd_restante -= estoque_item.quantidade
+                        estoque_item.quantidade = 0
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'venda_id': venda.id,
+                'message': 'Venda registrada com sucesso!'
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Erro ao criar venda: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Erro interno do servidor: {str(e)}'
+            }), 500
     
-    produtos = Produto.query.filter_by(ativo=True).all()
-    return render_template('nova_venda.html', produtos=produtos)
+    try:
+        produtos = Produto.query.filter_by(ativo=True).all()
+        return render_template('nova_venda.html', produtos=produtos)
+    except Exception as e:
+        print(f"Erro ao carregar página de nova venda: {e}")
+        flash('Erro ao carregar produtos. Tente novamente.', 'error')
+        return redirect(url_for('vendas'))
 
 # APIs
 @app.route('/api/produtos')
@@ -625,9 +667,24 @@ def api_relatorio_vendas():
         
         # Aplicar filtros de data se fornecidos
         if data_inicio:
-            query = query.filter(Venda.data_venda >= datetime.strptime(data_inicio, '%Y-%m-%d'))
+            try:
+                data_inicio_parsed = datetime.strptime(data_inicio, '%Y-%m-%d')
+                query = query.filter(Venda.data_venda >= data_inicio_parsed)
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de data de início inválido. Use YYYY-MM-DD'
+                }), 400
+                
         if data_fim:
-            query = query.filter(Venda.data_venda <= datetime.strptime(data_fim + ' 23:59:59', '%Y-%m-%d %H:%M:%S'))
+            try:
+                data_fim_parsed = datetime.strptime(data_fim + ' 23:59:59', '%Y-%m-%d %H:%M:%S')
+                query = query.filter(Venda.data_venda <= data_fim_parsed)
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Formato de data de fim inválido. Use YYYY-MM-DD'
+                }), 400
         
         # Ordenar por data
         vendas = query.order_by(Venda.data_venda.desc()).all()
@@ -635,22 +692,26 @@ def api_relatorio_vendas():
         # Preparar dados para o relatório
         dados_vendas = []
         for venda in vendas:
-            dados_vendas.append({
-                'id': venda.id,
-                'data': venda.data_venda.strftime('%d/%m/%Y %H:%M'),
-                'valor_total': venda.valor_total,
-                'desconto': venda.desconto,
-                'valor_liquido': venda.valor_total - venda.desconto,
-                'forma_pagamento': venda.forma_pagamento,
-                'vendedor': venda.user.nome,
-                'observacoes': venda.observacoes or '',
-                'itens': [{
-                    'produto': item.produto.nome,
-                    'quantidade': item.quantidade,
-                    'preco_unitario': item.preco_unitario,
-                    'preco_total': item.preco_total
-                } for item in venda.itens]
-            })
+            try:
+                dados_vendas.append({
+                    'id': venda.id,
+                    'data': venda.data_venda.strftime('%d/%m/%Y %H:%M'),
+                    'valor_total': float(venda.valor_total),
+                    'desconto': float(venda.desconto),
+                    'valor_liquido': float(venda.valor_total - venda.desconto),
+                    'forma_pagamento': venda.forma_pagamento,
+                    'vendedor': venda.user.nome if venda.user else 'N/A',
+                    'observacoes': venda.observacoes or '',
+                    'itens': [{
+                        'produto': item.produto.nome if item.produto else 'Produto não encontrado',
+                        'quantidade': item.quantidade,
+                        'preco_unitario': float(item.preco_unitario),
+                        'preco_total': float(item.preco_total)
+                    } for item in venda.itens]
+                })
+            except Exception as e:
+                print(f"Erro ao processar venda {venda.id}: {e}")
+                continue
         
         # Calcular totais
         total_vendas = len(dados_vendas)
@@ -668,10 +729,11 @@ def api_relatorio_vendas():
         })
         
     except Exception as e:
+        print(f"Erro ao gerar relatório de vendas: {e}")
         return jsonify({
             'success': False,
-            'error': str(e)
-        })
+            'error': f'Erro ao gerar relatório: {str(e)}'
+        }), 500
 
 @app.route('/debug/estoque')
 @login_required
@@ -717,33 +779,37 @@ def api_relatorio_lucratividade():
         dados_lucratividade = []
         
         for produto in produtos:
-            # Calcular dados de vendas
-            vendas_produto = ItemVenda.query.filter_by(produto_id=produto.id).all()
-            qtd_vendida = sum(v.quantidade for v in vendas_produto)
-            receita_total = sum(v.preco_total for v in vendas_produto)
-            
-            # Calcular custo total
-            estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
-            qtd_comprada = sum(e.quantidade for e in estoque_items)
-            custo_total = sum(e.quantidade * e.custo_unitario for e in estoque_items)
-            
-            # Calcular lucro
-            lucro_total = receita_total - custo_total
-            margem_lucro = (lucro_total / custo_total * 100) if custo_total > 0 else 0
-            
-            dados_lucratividade.append({
-                'produto_id': produto.id,
-                'produto_nome': produto.nome,
-                'tipo': produto.tipo,
-                'preco_padrao': produto.preco_padrao,
-                'preco_custo': produto.preco_custo,
-                'qtd_vendida': qtd_vendida,
-                'qtd_comprada': qtd_comprada,
-                'receita_total': receita_total,
-                'custo_total': custo_total,
-                'lucro_total': lucro_total,
-                'margem_lucro': margem_lucro
-            })
+            try:
+                # Calcular dados de vendas
+                vendas_produto = ItemVenda.query.filter_by(produto_id=produto.id).all()
+                qtd_vendida = sum(v.quantidade for v in vendas_produto)
+                receita_total = sum(v.preco_total for v in vendas_produto)
+                
+                # Calcular custo total
+                estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+                qtd_comprada = sum(e.quantidade for e in estoque_items)
+                custo_total = sum(e.quantidade * e.custo_unitario for e in estoque_items)
+                
+                # Calcular lucro
+                lucro_total = receita_total - custo_total
+                margem_lucro = (lucro_total / custo_total * 100) if custo_total > 0 else 0
+                
+                dados_lucratividade.append({
+                    'produto_id': produto.id,
+                    'produto_nome': produto.nome,
+                    'tipo': produto.tipo,
+                    'preco_padrao': float(produto.preco_padrao),
+                    'preco_custo': float(produto.preco_custo),
+                    'qtd_vendida': qtd_vendida,
+                    'qtd_comprada': qtd_comprada,
+                    'receita_total': float(receita_total),
+                    'custo_total': float(custo_total),
+                    'lucro_total': float(lucro_total),
+                    'margem_lucro': float(margem_lucro)
+                })
+            except Exception as e:
+                print(f"Erro ao processar produto {produto.id}: {e}")
+                continue
         
         # Calcular totais
         total_receita = sum(p['receita_total'] for p in dados_lucratividade)
@@ -755,18 +821,19 @@ def api_relatorio_lucratividade():
             'success': True,
             'produtos': dados_lucratividade,
             'resumo': {
-                'total_receita': total_receita,
-                'total_custo': total_custo,
-                'total_lucro': total_lucro,
-                'margem_geral': margem_geral
+                'total_receita': float(total_receita),
+                'total_custo': float(total_custo),
+                'total_lucro': float(total_lucro),
+                'margem_geral': float(margem_geral)
             }
         })
         
     except Exception as e:
+        print(f"Erro ao gerar relatório de lucratividade: {e}")
         return jsonify({
             'success': False,
-            'error': str(e)
-        })
+            'error': f'Erro ao gerar relatório: {str(e)}'
+        }), 500
 
 # PWA Routes
 @app.route('/manifest.json')
@@ -1132,3 +1199,62 @@ if __name__ == '__main__':
     else:
         print("🌐 Local: Acesse apenas http://10.0.0.105:5000")
         app.run(debug=True, host='10.0.0.105', port=5000, use_reloader=False) 
+
+@app.route('/debug/sistema')
+@login_required
+def debug_sistema():
+    """Rota de debug para verificar status do sistema"""
+    try:
+        # Verificar contadores
+        total_usuarios = User.query.count()
+        total_produtos = Produto.query.count()
+        total_vendas = Venda.query.count()
+        total_itens_venda = ItemVenda.query.count()
+        total_estoque_items = Estoque.query.count()
+        
+        # Verificar últimas vendas
+        ultimas_vendas = Venda.query.order_by(Venda.data_venda.desc()).limit(5).all()
+        vendas_info = []
+        for venda in ultimas_vendas:
+            vendas_info.append({
+                'id': venda.id,
+                'data': venda.data_venda.strftime('%d/%m/%Y %H:%M'),
+                'valor_total': float(venda.valor_total),
+                'user_id': venda.user_id,
+                'user_nome': venda.user.nome if venda.user else 'N/A',
+                'itens_count': len(venda.itens)
+            })
+        
+        # Verificar produtos com estoque
+        produtos_estoque = []
+        produtos = Produto.query.filter_by(ativo=True).all()
+        for produto in produtos:
+            estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+            estoque_total = sum(e.quantidade for e in estoque_items)
+            produtos_estoque.append({
+                'id': produto.id,
+                'nome': produto.nome,
+                'estoque_total': estoque_total,
+                'preco_padrao': float(produto.preco_padrao)
+            })
+        
+        return jsonify({
+            'success': True,
+            'contadores': {
+                'usuarios': total_usuarios,
+                'produtos': total_produtos,
+                'vendas': total_vendas,
+                'itens_venda': total_itens_venda,
+                'estoque_items': total_estoque_items
+            },
+            'ultimas_vendas': vendas_info,
+            'produtos_estoque': produtos_estoque,
+            'database_path': db_path,
+            'is_render': is_render
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }) 
