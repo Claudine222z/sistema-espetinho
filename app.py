@@ -25,7 +25,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 is_render = os.environ.get('RENDER', False)
 
 if is_render:
-    # Configuração específica para Render - simular comportamento do IP local
+    # Configuração específica para Render - usar apenas o domínio do Render
     app.config['SERVER_NAME'] = None
     app.config['PREFERRED_URL_SCHEME'] = 'https'  # Render usa HTTPS
     app.config['SESSION_COOKIE_SECURE'] = True
@@ -34,9 +34,9 @@ if is_render:
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
     app.config['SESSION_COOKIE_DOMAIN'] = None
     app.config['SESSION_COOKIE_PATH'] = '/'
-    print("🌐 Configuração RENDER ativada - simula comportamento do IP local")
+    print("🌐 Configuração RENDER ativada - usando apenas domínio do Render")
 else:
-    # Configuração para desenvolvimento local
+    # Configuração para desenvolvimento local - usar apenas IP específico
     app.config['SERVER_NAME'] = None  # Aceita qualquer hostname
     app.config['PREFERRED_URL_SCHEME'] = 'http'  # Usa HTTP por padrão
     app.config['SESSION_COOKIE_SECURE'] = False  # Não força HTTPS
@@ -45,7 +45,11 @@ else:
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
     app.config['SESSION_COOKIE_DOMAIN'] = None  # Permite qualquer domínio
     app.config['SESSION_COOKIE_PATH'] = '/'
-    print("🌐 Configuração LOCAL ativada")
+    
+    # Configurações adicionais para resolver problema localhost vs IP
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Desabilita cache de arquivos estáticos
+    app.config['TEMPLATES_AUTO_RELOAD'] = True  # Recarrega templates automaticamente
+    print("🌐 Configuração LOCAL ativada - usando apenas IP 10.0.0.105")
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -177,6 +181,10 @@ def can_view_sales_details():
 # Rotas principais
 @app.route('/')
 def index():
+    # Redirecionar localhost para IP da rede
+    if request.host.startswith('127.0.0.1') or request.host.startswith('localhost'):
+        return redirect('http://10.0.0.105:5000', code=302)
+    
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template('index.html')
@@ -593,10 +601,10 @@ def api_produtos():
 def api_produto(id):
     produto = Produto.query.get_or_404(id)
     return jsonify({
-        'id': produto.id,
-        'nome': produto.nome,
-        'tipo': produto.tipo,
-        'preco_padrao': produto.preco_padrao,
+            'id': produto.id,
+            'nome': produto.nome,
+            'tipo': produto.tipo,
+            'preco_padrao': produto.preco_padrao,
         'descricao': produto.descricao
     })
 
@@ -794,6 +802,28 @@ def service_worker():
 @app.route('/teste-camera')
 def teste_camera():
     return render_template('teste_camera_debug.html')
+
+@app.route('/teste-localhost-ip')
+def teste_localhost_ip():
+    """Rota para testar se o problema localhost vs IP foi resolvido"""
+    return jsonify({
+        'success': True,
+        'message': 'Teste localhost vs IP',
+        'host': request.host,
+        'url': request.url,
+        'base_url': request.base_url,
+        'headers': dict(request.headers),
+        'cookies': dict(request.cookies),
+        'session': dict(session),
+        'config': {
+            'server_name': app.config.get('SERVER_NAME'),
+            'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
+            'session_cookie_domain': app.config.get('SESSION_COOKIE_DOMAIN'),
+            'session_cookie_secure': app.config.get('SESSION_COOKIE_SECURE'),
+            'send_file_max_age': app.config.get('SEND_FILE_MAX_AGE_DEFAULT'),
+            'templates_auto_reload': app.config.get('TEMPLATES_AUTO_RELOAD')
+        }
+    })
 
 @app.route('/teste-sessao')
 def teste_sessao():
@@ -1069,9 +1099,9 @@ def initialize_app():
                             else:
                                 qtd_restante -= estoque_item.quantidade
                                 estoque_item.quantidade = 0
-                
-                db.session.commit()
-                print("✅ Vendas de exemplo criadas!")
+                    
+                    db.session.commit()
+                    print("✅ Vendas de exemplo criadas!")
             else:
                 print("✅ Produtos já existem no sistema!")
                 
@@ -1084,4 +1114,11 @@ initialize_app()
 if __name__ == '__main__':
     print("🚀 Sistema Espetinho iniciado!")
     print("👤 Login: admin / admin123")
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    
+    if is_render:
+        print("🌐 Render: Acesse apenas o domínio fornecido pelo Render")
+        # No Render, não precisa especificar host/port - ele usa as variáveis de ambiente
+        app.run(debug=False)  # Render não usa debug mode
+    else:
+        print("🌐 Local: Acesse apenas http://10.0.0.105:5000")
+        app.run(debug=True, host='10.0.0.105', port=5000, use_reloader=False) 
