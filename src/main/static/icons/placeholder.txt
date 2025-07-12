@@ -1,0 +1,8 @@
+Esta pasta deve conter os ícones do PWA:
+- icon-16x16.png
+- icon-32x32.png  
+- icon-192x192.png
+- icon-512x512.png
+ 
+Por enquanto, você pode usar qualquer ícone PNG ou criar ícones simples.
+Para um ícone básico, você pode usar um gerador online de ícones PWA. 

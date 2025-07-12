@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Venda - Sistema Espetinho{% endblock %}
+
+{% block extra_css %}
+<style>
+    .produto-card {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .produto-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .produto-card.selected {
+        border-color: #198754;
+        background-color: #f8fff9;
+    }
+    .carrinho-item {
+        border-left: 4px solid #198754;
+    }
+    .preco-personalizado {
+        border: 2px dashed #ffc107;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Nova Venda</h1>
+            <p class="text-muted">Registre uma nova venda</p>
+        </div>
+        <div>
+            <a href="{{ url_for('vendas') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Voltar
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Lista de Produtos -->
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-box me-2"></i>
+                        Produtos Disponíveis
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <!-- Filtros -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="filtroProduto" 
+                                   placeholder="Buscar produto...">
+                        </div>
+                        <div class="col-md-6">
+                            <select class="form-select" id="filtroTipo">
+                                <option value="">Todos os tipos</option>
+                                <option value="espetinho">Espetinhos</option>
+                                <option value="bebida">Bebidas</option>
+                                <option value="porcao">Porções</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Grid de Produtos -->
+                    <div class="row" id="produtosGrid">
+                        {% for produto in produtos %}
+                        <div class="col-md-4 col-sm-6 mb-3 produto-item" 
+                             data-tipo="{{ produto.tipo }}" 
+                             data-nome="{{ produto.nome.lower() }}"
+                             data-id="{{ produto.id }}"
+                             data-nome-produto="{{ produto.nome }}"
+                             data-preco="{{ produto.preco_padrao }}">
+                            <div class="card produto-card h-100">
+                                <div class="card-body text-center">
+                                    <div class="mb-2">
+                                        {% if produto.tipo == 'espetinho' %}
+                                            <i class="fas fa-utensils fa-2x text-success"></i>
+                                        {% elif produto.tipo == 'bebida' %}
+                                            <i class="fas fa-wine-bottle fa-2x text-primary"></i>
+                                        {% else %}
+                                            <i class="fas fa-box fa-2x text-info"></i>
+                                        {% endif %}
+                                    </div>
+                                    <h6 class="card-title">{{ produto.nome }}</h6>
+                                    <p class="card-text">
+                                        <strong class="text-success">R$ {{ "%.2f"|format(produto.preco_padrao) }}</strong>
+                                    </p>
+                                    <small class="text-muted">{{ produto.tipo.title() }}</small>
+                                    {% if produto.estoque <= 5 %}
+                                        <div class="mt-2">
+                                            <small class="text-warning">
+                                                <i class="fas fa-exclamation-triangle"></i> Estoque baixo: {{ produto.estoque }}
+                                            </small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Carrinho -->
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-shopping-cart me-2"></i>
+                        Carrinho
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="carrinhoItens">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                            <p>Nenhum item no carrinho</p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Resumo -->
+                    <div id="resumoVenda" style="display: none;">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Subtotal:</span>
+                            <span id="subtotal">R$ 0,00</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Desconto:</span>
+                            <span id="desconto">R$ 0,00</span>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between mb-3">
+                            <strong>Total:</strong>
+                            <strong id="total" class="text-success">R$ 0,00</strong>
+                        </div>
+
+                        <!-- Desconto -->
+                        <div class="mb-3">
+                            <label for="descontoInput" class="form-label">Desconto (R$)</label>
+                            <input type="number" class="form-control" id="descontoInput" 
+                                   step="0.01" min="0" value="0" onchange="calcularTotal()">
+                        </div>
+
+                        <!-- Forma de Pagamento -->
+                        <div class="mb-3">
+                            <label for="formaPagamento" class="form-label">Forma de Pagamento</label>
+                            <select class="form-select" id="formaPagamento">
+                                <option value="dinheiro">Dinheiro</option>
+                                <option value="pix">PIX</option>
+                                <option value="cartao">Cartão</option>
+                            </select>
+                        </div>
+
+                        <!-- Observações -->
+                        <div class="mb-3">
+                            <label for="observacoes" class="form-label">Observações</label>
+                            <textarea class="form-control" id="observacoes" rows="2" 
+                                      placeholder="Observações da venda (opcional)"></textarea>
+                        </div>
+
+                        <!-- Botão Finalizar -->
+                        <button type="button" class="btn btn-success w-100 btn-lg" onclick="finalizarVenda()">
+                            <i class="fas fa-check me-2"></i>Finalizar Venda
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let carrinho = [];
+
+function adicionarAoCarrinho(produtoId, nome, precoPadrao) {
+    // Verificar se já existe no carrinho
+    const itemExistente = carrinho.find(item => item.produto_id === produtoId);
+    if (itemExistente) {
+        itemExistente.quantidade += 1;
+        itemExistente.preco_total = itemExistente.quantidade * itemExistente.preco_unitario;
+    } else {
+        carrinho.push({
+            produto_id: produtoId,
+            nome: nome,
+            quantidade: 1,
+            preco_unitario: precoPadrao,
+            preco_total: precoPadrao
+        });
+    }
+    atualizarCarrinho();
+}
+
+function removerDoCarrinho(index) {
+    carrinho.splice(index, 1);
+    atualizarCarrinho();
+}
+
+function alterarQuantidade(index, delta) {
+    const item = carrinho[index];
+    const novaQuantidade = item.quantidade + delta;
+    if (novaQuantidade > 0) {
+        item.quantidade = novaQuantidade;
+        item.preco_total = item.quantidade * item.preco_unitario;
+        atualizarCarrinho();
+    } else if (novaQuantidade === 0) {
+        removerDoCarrinho(index);
+    }
+}
+
+function alterarPreco(index) {
+    const item = carrinho[index];
+    const novoPreco = parseFloat(prompt(`Digite o novo preço para ${item.nome}:`, item.preco_unitario));
+    if (!isNaN(novoPreco) && novoPreco >= 0) {
+        item.preco_unitario = novoPreco;
+        item.preco_total = item.quantidade * item.preco_unitario;
+        atualizarCarrinho();
+    }
+}
+
+function atualizarCarrinho() {
+    const carrinhoDiv = document.getElementById('carrinhoItens');
+    const resumoDiv = document.getElementById('resumoVenda');
+    if (carrinho.length === 0) {
+        carrinhoDiv.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                <p>Nenhum item no carrinho</p>
+            </div>
+        `;
+        resumoDiv.style.display = 'none';
+        return;
+    }
+    let html = '';
+    carrinho.forEach((item, index) => {
+        html += `
+            <div class="carrinho-item p-3 mb-2 bg-light rounded">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${item.nome}</h6>
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-sm btn-outline-secondary me-2" onclick="alterarQuantidade(${index}, -1)">-</button>
+                            <span class="mx-2">${item.quantidade}</span>
+                            <button class="btn btn-sm btn-outline-secondary me-2" onclick="alterarQuantidade(${index}, 1)">+</button>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold text-success">R$ ${item.preco_total.toFixed(2)}</div>
+                        <small class="text-muted">R$ ${item.preco_unitario.toFixed(2)} cada</small>
+                        <div class="mt-1">
+                            <button class="btn btn-sm btn-outline-warning me-1" onclick="alterarPreco(${index})" title="Alterar preço">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="removerDoCarrinho(${index})" title="Remover">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    carrinhoDiv.innerHTML = html;
+    resumoDiv.style.display = 'block';
+    calcularTotal();
+}
+
+function calcularTotal() {
+    const subtotal = carrinho.reduce((total, item) => total + item.preco_total, 0);
+    const desconto = parseFloat(document.getElementById('descontoInput').value) || 0;
+    const total = subtotal - desconto;
+    document.getElementById('subtotal').textContent = `R$ ${subtotal.toFixed(2)}`;
+    document.getElementById('desconto').textContent = `R$ ${desconto.toFixed(2)}`;
+    document.getElementById('total').textContent = `R$ ${total.toFixed(2)}`;
+}
+
+function finalizarVenda() {
+    if (carrinho.length === 0) {
+        alert('Adicione itens ao carrinho antes de finalizar a venda.');
+        return;
+    }
+    const subtotal = carrinho.reduce((total, item) => total + item.preco_total, 0);
+    const desconto = parseFloat(document.getElementById('descontoInput').value) || 0;
+    const total = subtotal - desconto;
+    const formaPagamento = document.getElementById('formaPagamento').value;
+    const observacoes = document.getElementById('observacoes').value;
+    const dadosVenda = {
+        valor_total: total,
+        desconto: desconto,
+        forma_pagamento: formaPagamento,
+        observacoes: observacoes,
+        itens: carrinho
+    };
+    fetch('{{ url_for("nova_venda") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dadosVenda)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Venda finalizada com sucesso!');
+            window.location.href = '{{ url_for("vendas") }}';
+        } else {
+            alert('Erro ao finalizar venda. Tente novamente.');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao finalizar venda. Tente novamente.');
+    });
+}
+
+function filtrarProdutos() {
+    const filtroNome = document.getElementById('filtroProduto').value.toLowerCase();
+    const filtroTipo = document.getElementById('filtroTipo').value;
+    const produtosElements = document.querySelectorAll('.produto-item');
+    produtosElements.forEach(produto => {
+        const nome = produto.dataset.nome;
+        const tipo = produto.dataset.tipo;
+        const matchNome = nome.includes(filtroNome);
+        const matchTipo = !filtroTipo || tipo === filtroTipo;
+        produto.style.display = matchNome && matchTipo ? 'block' : 'none';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('filtroProduto').addEventListener('input', filtrarProdutos);
+    document.getElementById('filtroTipo').addEventListener('change', filtrarProdutos);
+    
+    // Adicionar event listeners para os cards de produtos
+    document.querySelectorAll('.produto-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const produtoItem = this.closest('.produto-item');
+            const produtoId = parseInt(produtoItem.dataset.id);
+            const nome = produtoItem.dataset.nomeProduto;
+            const preco = parseFloat(produtoItem.dataset.preco);
+            adicionarAoCarrinho(produtoId, nome, preco);
+        });
+    });
+});
+</script>
+{% endblock %} 

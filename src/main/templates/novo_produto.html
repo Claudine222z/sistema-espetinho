@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+
+{% block title %}Novo Produto - Sistema Espetinho{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Novo Produto</h1>
+            <p class="text-muted">Cadastre um novo produto no sistema</p>
+        </div>
+        <div>
+            <a href="{{ url_for('produtos') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulário -->
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-plus me-2"></i>
+                        Informações do Produto
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label for="nome" class="form-label">Nome do Produto *</label>
+                                <input type="text" class="form-control" id="nome" name="nome" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="tipo" class="form-label">Tipo *</label>
+                                <select class="form-select" id="tipo" name="tipo" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="espetinho">Espetinho</option>
+                                    <option value="bebida">Bebida</option>
+                                    <option value="porcao">Porção</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="preco_custo" class="form-label">Preço de Compra (R$) *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" id="preco_custo" name="preco_custo" 
+                                           step="0.01" min="0" value="0" required>
+                                </div>
+                                <small class="text-muted">Quanto você pagou pelo produto</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="margem_lucro" class="form-label">Margem de Lucro (%)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="margem_lucro" name="margem_lucro" 
+                                           step="0.1" min="0" value="30">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                                <small class="text-muted">Percentual de lucro desejado</small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="preco_sugerido" class="form-label">Preço Sugerido (R$)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" id="preco_sugerido" readonly>
+                                    <button type="button" class="btn btn-outline-primary" onclick="calcularPrecoSugerido()">
+                                        <i class="fas fa-calculator"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">Calculado automaticamente</small>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="preco_padrao" class="form-label">Preço de Venda (R$) *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" id="preco_padrao" name="preco_padrao" 
+                                           step="0.01" min="0" required>
+                                </div>
+                                <small class="text-muted">Preço que será cobrado do cliente</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="codigo_barras" class="form-label">Código de Barras</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="codigo_barras" name="codigo_barras" 
+                                           placeholder="Digite ou escaneie o código">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="abrirLeitorCodigo()">
+                                        <i class="fas fa-barcode"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">Opcional - para identificação rápida</small>
+                            </div>
+                        </div>
+
+                        <!-- Informações de Lucratividade -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="alert alert-info" id="info-lucratividade" style="display: none;">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <strong>Lucro Unitário:</strong> <span id="lucro-unitario">R$ 0,00</span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <strong>Margem Atual:</strong> <span id="margem-atual">0%</span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <strong>Rentabilidade:</strong> <span id="rentabilidade">Baixa</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="descricao" class="form-label">Descrição</label>
+                            <textarea class="form-control" id="descricao" name="descricao" rows="3" 
+                                      placeholder="Descreva o produto (opcional)"></textarea>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('produtos') }}" class="btn btn-outline-secondary me-md-2">
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-2"></i>Salvar Produto
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function abrirLeitorCodigo() {
+    // Abrir o leitor de código de barras em uma nova janela
+    const leitorWindow = window.open('/codigo-barras', 'leitor_codigo', 
+        'width=800,height=600,scrollbars=yes,resizable=yes');
+    
+    // Listener para receber o código escaneado
+    window.addEventListener('message', function(event) {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'codigo_escaneado') {
+            document.getElementById('codigo_barras').value = event.data.codigo;
+            leitorWindow.close();
+        }
+    });
+}
+
+function calcularPrecoSugerido() {
+    const precoCusto = parseFloat(document.getElementById('preco_custo').value) || 0;
+    const margemLucro = parseFloat(document.getElementById('margem_lucro').value) || 30;
+    
+    if (precoCusto <= 0) {
+        alert('Digite um preço de custo válido!');
+        return;
+    }
+    
+    fetch('/api/calcular-preco-sugerido', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            preco_custo: precoCusto,
+            margem_lucro: margemLucro
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('preco_sugerido').value = data.preco_sugerido;
+            document.getElementById('lucro-unitario').textContent = `R$ ${data.lucro_unitario.toFixed(2)}`;
+            document.getElementById('margem-atual').textContent = `${data.margem_lucro}%`;
+            
+            // Determinar rentabilidade
+            let rentabilidade = 'Baixa';
+            if (data.margem_lucro >= 50) rentabilidade = 'Alta';
+            else if (data.margem_lucro >= 30) rentabilidade = 'Média';
+            
+            document.getElementById('rentabilidade').textContent = rentabilidade;
+            document.getElementById('info-lucratividade').style.display = 'block';
+        } else {
+            alert(data.mensagem);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao calcular preço sugerido');
+    });
+}
+
+function calcularLucratividadeAtual() {
+    const precoCusto = parseFloat(document.getElementById('preco_custo').value) || 0;
+    const precoVenda = parseFloat(document.getElementById('preco_padrao').value) || 0;
+    
+    if (precoCusto > 0 && precoVenda > 0) {
+        const lucroUnitario = precoVenda - precoCusto;
+        const margemAtual = (lucroUnitario / precoCusto) * 100;
+        
+        document.getElementById('lucro-unitario').textContent = `R$ ${lucroUnitario.toFixed(2)}`;
+        document.getElementById('margem-atual').textContent = `${margemAtual.toFixed(1)}%`;
+        
+        // Determinar rentabilidade
+        let rentabilidade = 'Baixa';
+        if (margemAtual >= 50) rentabilidade = 'Alta';
+        else if (margemAtual >= 30) rentabilidade = 'Média';
+        
+        document.getElementById('rentabilidade').textContent = rentabilidade;
+        document.getElementById('info-lucratividade').style.display = 'block';
+    }
+}
+
+// Event listeners para cálculo automático
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const codigoBarras = urlParams.get('codigo_barras');
+    if (codigoBarras) {
+        document.getElementById('codigo_barras').value = codigoBarras;
+    }
+    
+    // Calcular lucratividade quando os preços mudarem
+    document.getElementById('preco_custo').addEventListener('input', calcularLucratividadeAtual);
+    document.getElementById('preco_padrao').addEventListener('input', calcularLucratividadeAtual);
+    
+    // Calcular preço sugerido quando custo ou margem mudarem
+    document.getElementById('preco_custo').addEventListener('input', function() {
+        if (this.value > 0) {
+            calcularPrecoSugerido();
+        }
+    });
+    
+    document.getElementById('margem_lucro').addEventListener('input', function() {
+        if (document.getElementById('preco_custo').value > 0) {
+            calcularPrecoSugerido();
+        }
+    });
+});
+</script>
+{% endblock %} 
