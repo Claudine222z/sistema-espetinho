@@ -9,8 +9,10 @@ from functools import wraps
 
 load_dotenv()
 
-app = Flask(__name__)
+# Configuração específica para garantir banco único
+app = Flask(__name__, instance_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'))
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'sua-chave-secreta-aqui')
+
 # Usar caminho absoluto para o banco de dados
 instance_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
 if not os.path.exists(instance_path):
@@ -795,7 +797,9 @@ def teste_banco():
             'database_exists': os.path.exists(db_path),
             'database_size': os.path.getsize(db_path) if os.path.exists(db_path) else 0,
             'host': request.host,
-            'url': request.url
+            'url': request.url,
+            'instance_path': app.instance_path,
+            'working_directory': os.getcwd()
         }
         
         # Verificar dados do banco
@@ -839,8 +843,30 @@ def teste_banco():
                 'database_path': db_path,
                 'host': request.host
             }
-        })
+                })
 
+@app.route('/sincronizar-banco')
+def sincronizar_banco():
+    """Rota para forçar sincronização do banco"""
+    try:
+        # Recriar todas as tabelas
+        db.drop_all()
+        db.create_all()
+        
+        # Recriar dados de exemplo
+        initialize_app()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Banco de dados sincronizado com sucesso!',
+            'database_path': db_path
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+ 
 # Initialize database and create admin user
 def initialize_app():
     with app.app_context():
