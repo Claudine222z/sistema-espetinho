@@ -6,6 +6,11 @@
 <script>
 let refreshCountdown = 30;
 
+// Log do host atual
+console.log('🌐 Host atual:', window.location.host);
+console.log('🌐 URL atual:', window.location.href);
+console.log('🌐 Protocolo:', window.location.protocol);
+
 // Atualizar contador
 setInterval(function() {
     refreshCountdown--;
@@ -16,14 +21,16 @@ setInterval(function() {
     
     if (refreshCountdown <= 0) {
         refreshCountdown = 30;
-        location.reload();
+        // Forçar reload sem cache
+        window.location.reload(true);
     }
 }, 1000);
 
 // Refresh quando voltar para a página
 document.addEventListener('visibilitychange', function() {
     if (!document.hidden) {
-        location.reload();
+        // Forçar reload sem cache
+        window.location.reload(true);
     }
 });
 
@@ -40,6 +47,40 @@ function verificarDebug() {
             alert('Erro ao verificar debug: ' + error);
         });
 }
+
+// Função de diagnóstico
+function verificarDiagnostico() {
+    fetch('/diagnostico')
+        .then(response => response.json())
+        .then(data => {
+            console.log('🔍 DIAGNÓSTICO COMPLETO:', data);
+            alert('Verifique o console do navegador (F12) para ver o diagnóstico completo!');
+        })
+        .catch(error => {
+            console.error('Erro no diagnóstico:', error);
+            alert('Erro ao verificar diagnóstico: ' + error);
+        });
+}
+
+// Verificar se há diferenças de host
+function verificarHost() {
+    const currentHost = window.location.host;
+    const isLocalhost = currentHost.includes('localhost') || currentHost.includes('127.0.0.1');
+    const isIP = currentHost.includes('10.0.0.105');
+    
+    console.log('🔍 Análise do host:');
+    console.log('- Host atual:', currentHost);
+    console.log('- É localhost:', isLocalhost);
+    console.log('- É IP:', isIP);
+    console.log('- User Agent:', navigator.userAgent);
+    
+    return { currentHost, isLocalhost, isIP };
+}
+
+// Executar verificação de host ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    verificarHost();
+});
 </script>
 {% endblock %}
 
@@ -62,6 +103,12 @@ function verificarDebug() {
             {% if current_user.role == 'admin' %}
             <button type="button" class="btn btn-outline-warning ms-2" onclick="verificarDebug()">
                 <i class="fas fa-bug me-2"></i>Debug
+            </button>
+            <button type="button" class="btn btn-outline-info ms-2" onclick="verificarDiagnostico()">
+                <i class="fas fa-stethoscope me-2"></i>Diagnóstico
+            </button>
+            <button type="button" class="btn btn-outline-secondary ms-2" onclick="verificarHost()">
+                <i class="fas fa-network-wired me-2"></i>Host
             </button>
             {% endif %}
         </div>

@@ -18,17 +18,32 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SERVER_NAME'] = None  # Permite acesso por qualquer hostname
 app.config['PREFERRED_URL_SCHEME'] = 'http'
 
+# Configurações adicionais para resolver problemas de host
+app.config['SESSION_COOKIE_SECURE'] = False
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Middleware para adicionar headers CORS
+# Middleware para adicionar headers CORS e logs
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    
+    # Log detalhado de cada requisição
+    print(f"🌐 REQUEST: {request.method} {request.url}")
+    print(f"🌐 HOST: {request.host}")
+    print(f"🌐 REMOTE: {request.remote_addr}")
+    print(f"🌐 USER-AGENT: {request.headers.get('User-Agent', 'N/A')}")
+    print(f"🌐 STATUS: {response.status_code}")
+    print("---")
+    
     return response
 
 # Modelos do banco de dados
@@ -823,8 +838,63 @@ def teste_conexao():
         'timestamp': datetime.now().isoformat(),
         'host': request.host,
         'url': request.url,
-        'method': request.method
+        'method': request.method,
+        'remote_addr': request.remote_addr,
+        'user_agent': request.headers.get('User-Agent', 'N/A'),
+        'headers': dict(request.headers)
     })
+
+@app.route('/diagnostico')
+def diagnostico():
+    """Rota de diagnóstico completo do sistema"""
+    try:
+        # Verificar banco de dados
+        produtos_count = Produto.query.count()
+        estoque_count = Estoque.query.count()
+        vendas_count = Venda.query.count()
+        users_count = User.query.count()
+        
+        # Verificar estoque atual
+        estoque_data = []
+        for produto in Produto.query.filter_by(ativo=True).all():
+            estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+            estoque_total = sum(e.quantidade for e in estoque_items)
+            estoque_data.append({
+                'id': produto.id,
+                'nome': produto.nome,
+                'estoque_total': estoque_total,
+                'estoque_items': len(estoque_items)
+            })
+        
+        return jsonify({
+            'status': 'success',
+            'timestamp': datetime.now().isoformat(),
+            'request_info': {
+                'host': request.host,
+                'url': request.url,
+                'remote_addr': request.remote_addr,
+                'user_agent': request.headers.get('User-Agent', 'N/A')
+            },
+            'database': {
+                'produtos': produtos_count,
+                'estoque_entries': estoque_count,
+                'vendas': vendas_count,
+                'users': users_count
+            },
+            'estoque_atual': estoque_data,
+            'app_config': {
+                'debug': app.debug,
+                'secret_key': '***' if app.config.get('SECRET_KEY') else 'Not set',
+                'server_name': app.config.get('SERVER_NAME'),
+                'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME')
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        })
 
 if __name__ == '__main__':
     # Verificar se existem certificados SSL
