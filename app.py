@@ -388,6 +388,12 @@ def calcular_preco_sugerido():
 def estoque():
     print("DEBUG: Acessando página de estoque")
     
+    # Mostrar TODOS os produtos (ativos e inativos) para debug
+    todos_produtos = Produto.query.all()
+    print(f"DEBUG: Total de produtos no banco: {len(todos_produtos)}")
+    for p in todos_produtos:
+        print(f"DEBUG: Produto '{p.nome}' - Ativo: {p.ativo} - ID: {p.id}")
+    
     produtos = Produto.query.filter_by(ativo=True).all()
     estoque_data = []
     
@@ -441,6 +447,13 @@ def adicionar_estoque():
             db.session.commit()
             
             print(f"DEBUG: Estoque adicionado com sucesso! ID: {estoque.id}")
+            
+            # Verificar se o estoque foi realmente salvo
+            estoque_salvo = Estoque.query.get(estoque.id)
+            if estoque_salvo:
+                print(f"DEBUG: Estoque confirmado no banco - ID: {estoque_salvo.id}, Qtd: {estoque_salvo.quantidade}")
+            else:
+                print("DEBUG: ERRO - Estoque não encontrado no banco após salvar!")
             
             flash('Estoque adicionado com sucesso!', 'success')
             print(f"DEBUG: Redirecionando para: {url_for('estoque')}")
@@ -656,6 +669,39 @@ def api_relatorio_vendas():
         'vendas_por_pagamento': vendas_por_pagamento,
         'vendas_por_dia': vendas_por_dia,
         'top_produtos': top_produtos
+    })
+
+@app.route('/debug/estoque')
+@login_required
+def debug_estoque():
+    """Rota de debug para verificar o estado do estoque"""
+    if current_user.role != 'admin':
+        return jsonify({'error': 'Acesso negado'}), 403
+    
+    # Verificar produtos
+    produtos = Produto.query.all()
+    produtos_data = []
+    for produto in produtos:
+        estoque_items = Estoque.query.filter_by(produto_id=produto.id).all()
+        estoque_total = sum(e.quantidade for e in estoque_items)
+        produtos_data.append({
+            'id': produto.id,
+            'nome': produto.nome,
+            'tipo': produto.tipo,
+            'ativo': produto.ativo,
+            'estoque_total': estoque_total,
+            'estoque_items': [{'id': e.id, 'quantidade': e.quantidade, 'custo': e.custo_unitario} for e in estoque_items]
+        })
+    
+    # Verificar todas as entradas de estoque
+    estoque_todos = Estoque.query.all()
+    estoque_data = [{'id': e.id, 'produto_id': e.produto_id, 'quantidade': e.quantidade, 'custo': e.custo_unitario} for e in estoque_todos]
+    
+    return jsonify({
+        'produtos': produtos_data,
+        'estoque_entries': estoque_data,
+        'total_produtos': len(produtos),
+        'total_estoque_entries': len(estoque_todos)
     })
 
 @app.route('/api/relatorio/lucratividade')

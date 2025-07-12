@@ -26,6 +26,20 @@ document.addEventListener('visibilitychange', function() {
         location.reload();
     }
 });
+
+// Função de debug
+function verificarDebug() {
+    fetch('/debug/estoque')
+        .then(response => response.json())
+        .then(data => {
+            console.log('DEBUG - Dados do estoque:', data);
+            alert('Verifique o console do navegador (F12) para ver os dados de debug!');
+        })
+        .catch(error => {
+            console.error('Erro no debug:', error);
+            alert('Erro ao verificar debug: ' + error);
+        });
+}
 </script>
 {% endblock %}
 
@@ -45,6 +59,11 @@ document.addEventListener('visibilitychange', function() {
             <a href="{{ url_for('adicionar_estoque') }}" class="btn btn-success">
                 <i class="fas fa-plus me-2"></i>Adicionar Estoque
             </a>
+            {% if current_user.role == 'admin' %}
+            <button type="button" class="btn btn-outline-warning ms-2" onclick="verificarDebug()">
+                <i class="fas fa-bug me-2"></i>Debug
+            </button>
+            {% endif %}
         </div>
     </div>
 
