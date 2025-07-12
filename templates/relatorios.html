@@ -233,10 +233,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const hoje = new Date();
     const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     
+    // Formatar datas no formato YYYY-MM-DD para o input
     document.getElementById('dataInicio').value = inicioMes.toISOString().split('T')[0];
     document.getElementById('dataFim').value = hoje.toISOString().split('T')[0];
     
-    gerarRelatorio();
+    // Aguardar um pouco para garantir que a página carregou completamente
+    setTimeout(() => {
+        gerarRelatorio();
+    }, 100);
 });
 
 function gerarRelatorio() {
@@ -248,6 +252,20 @@ function gerarRelatorio() {
         return;
     }
     
+    // Converter formato de data se necessário (DD/MM/YYYY para YYYY-MM-DD)
+    function converterData(data) {
+        if (data.includes('/')) {
+            const partes = data.split('/');
+            if (partes.length === 3) {
+                return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+            }
+        }
+        return data;
+    }
+    
+    const dataInicioFormatada = converterData(dataInicio);
+    const dataFimFormatada = converterData(dataFim);
+    
     // Mostrar loading
     document.getElementById('totalVendas').textContent = 'Carregando...';
     document.getElementById('qtdVendas').textContent = '...';
@@ -255,14 +273,19 @@ function gerarRelatorio() {
     document.getElementById('ticketMedio').textContent = 'Carregando...';
     
     // Buscar dados do relatório
-    fetch(`/api/relatorio/vendas?data_inicio=${dataInicio}&data_fim=${dataFim}`)
+    const url = `/api/relatorio/vendas?data_inicio=${dataInicioFormatada}&data_fim=${dataFimFormatada}`;
+    console.log('Chamando API:', url);
+    
+    fetch(url)
         .then(response => {
+            console.log('Response status:', response.status);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             return response.json();
         })
         .then(data => {
+            console.log('Dados recebidos:', data);
             if (data.success) {
                 atualizarEstatisticas(data);
                 atualizarTabelaVendas(data.vendas);

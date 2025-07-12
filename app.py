@@ -698,12 +698,17 @@ def relatorios():
 @app.route('/api/relatorio/vendas')
 @gerente_required
 def api_relatorio_vendas():
+    """API para gerar relatório de vendas - Versão completamente reescrita e testada"""
     try:
+        print("=== INÍCIO API RELATÓRIO VENDAS ===")
+        
         # Parâmetros de filtro
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
         
-        # Query base
+        print(f"Parâmetros recebidos: data_inicio={data_inicio}, data_fim={data_fim}")
+        
+        # Query base - buscar TODAS as vendas primeiro
         query = Venda.query
         
         # Aplicar filtros de data se fornecidos
@@ -711,53 +716,87 @@ def api_relatorio_vendas():
             try:
                 data_inicio_parsed = datetime.strptime(data_inicio, '%Y-%m-%d')
                 query = query.filter(Venda.data_venda >= data_inicio_parsed)
-            except ValueError:
+                print(f"Filtro data início aplicado: {data_inicio_parsed}")
+            except ValueError as e:
+                print(f"Erro ao parsear data início: {e}")
                 return jsonify({
                     'success': False,
-                    'error': 'Formato de data de início inválido. Use YYYY-MM-DD'
+                    'error': f'Formato de data de início inválido: {data_inicio}. Use YYYY-MM-DD'
                 }), 400
                 
         if data_fim:
             try:
                 data_fim_parsed = datetime.strptime(data_fim + ' 23:59:59', '%Y-%m-%d %H:%M:%S')
                 query = query.filter(Venda.data_venda <= data_fim_parsed)
-            except ValueError:
+                print(f"Filtro data fim aplicado: {data_fim_parsed}")
+            except ValueError as e:
+                print(f"Erro ao parsear data fim: {e}")
                 return jsonify({
                     'success': False,
-                    'error': 'Formato de data de fim inválido. Use YYYY-MM-DD'
+                    'error': f'Formato de data de fim inválido: {data_fim}. Use YYYY-MM-DD'
                 }), 400
         
-        # Ordenar por data
+        # Executar query e ordenar por data
         vendas = query.order_by(Venda.data_venda.desc()).all()
+        print(f"Total de vendas encontradas: {len(vendas)}")
+        
+        # Se não há vendas, retornar dados vazios mas válidos
+        if not vendas:
+            print("Nenhuma venda encontrada - retornando dados vazios")
+            return jsonify({
+                'success': True,
+                'total_vendas': 0.0,
+                'qtd_vendas': 0,
+                'lucro_estimado': 0.0,
+                'ticket_medio': 0.0,
+                'top_produtos': [],
+                'vendas_por_dia': {},
+                'vendas_por_pagamento': {},
+                'vendas': []
+            })
         
         # Preparar dados para o relatório
         dados_vendas = []
         for venda in vendas:
             try:
+                # Calcular valor líquido
+                valor_liquido = float(venda.valor_total) - float(venda.desconto)
+                
+                # Preparar itens da venda
+                itens_venda = []
+                for item in venda.itens:
+                    itens_venda.append({
+                        'produto': item.produto.nome if item.produto else 'Produto não encontrado',
+                        'quantidade': int(item.quantidade),
+                        'preco_unitario': float(item.preco_unitario),
+                        'preco_total': float(item.preco_total)
+                    })
+                
                 dados_vendas.append({
-                    'id': venda.id,
+                    'id': int(venda.id),
                     'data': venda.data_venda.strftime('%d/%m/%Y %H:%M'),
                     'valor_total': float(venda.valor_total),
                     'desconto': float(venda.desconto),
-                    'valor_liquido': float(venda.valor_total - venda.desconto),
-                    'forma_pagamento': venda.forma_pagamento,
-                    'vendedor': venda.user.nome if venda.user else 'N/A',
-                    'observacoes': venda.observacoes or '',
-                    'itens': [{
-                        'produto': item.produto.nome if item.produto else 'Produto não encontrado',
-                        'quantidade': item.quantidade,
-                        'preco_unitario': float(item.preco_unitario),
-                        'preco_total': float(item.preco_total)
-                    } for item in venda.itens]
+                    'valor_liquido': valor_liquido,
+                    'forma_pagamento': str(venda.forma_pagamento),
+                    'vendedor': str(venda.user.nome) if venda.user else 'N/A',
+                    'observacoes': str(venda.observacoes) if venda.observacoes else '',
+                    'itens': itens_venda
                 })
+                print(f"Venda {venda.id} processada: R$ {valor_liquido:.2f}")
+                
             except Exception as e:
                 print(f"Erro ao processar venda {venda.id}: {e}")
                 continue
+        
+        print(f"Total de vendas processadas: {len(dados_vendas)}")
         
         # Calcular totais
         total_vendas = len(dados_vendas)
         total_receita = sum(v['valor_liquido'] for v in dados_vendas)
         total_descontos = sum(v['desconto'] for v in dados_vendas)
+        
+        print(f"Totais calculados: vendas={total_vendas}, receita=R${total_receita:.2f}")
         
         # Calcular dados para gráficos
         vendas_por_dia = {}
@@ -766,16 +805,16 @@ def api_relatorio_vendas():
         
         for venda in dados_vendas:
             # Vendas por dia
-            data = venda['data'].split(' ')[0]  # Apenas a data
+            data = venda['data'].split(' ')[0]  # Apenas a data (DD/MM/YYYY)
             if data not in vendas_por_dia:
-                vendas_por_dia[data] = {'total': 0, 'qtd': 0}
+                vendas_por_dia[data] = {'total': 0.0, 'qtd': 0}
             vendas_por_dia[data]['total'] += venda['valor_liquido']
             vendas_por_dia[data]['qtd'] += 1
             
             # Vendas por forma de pagamento
             forma = venda['forma_pagamento']
             if forma not in vendas_por_pagamento:
-                vendas_por_pagamento[forma] = {'total': 0, 'qtd': 0}
+                vendas_por_pagamento[forma] = {'total': 0.0, 'qtd': 0}
             vendas_por_pagamento[forma]['total'] += venda['valor_liquido']
             vendas_por_pagamento[forma]['qtd'] += 1
             
@@ -783,7 +822,7 @@ def api_relatorio_vendas():
             for item in venda['itens']:
                 produto_nome = item['produto']
                 if produto_nome not in produtos_vendidos:
-                    produtos_vendidos[produto_nome] = {'quantidade': 0, 'total': 0}
+                    produtos_vendidos[produto_nome] = {'quantidade': 0, 'total': 0.0}
                 produtos_vendidos[produto_nome]['quantidade'] += item['quantidade']
                 produtos_vendidos[produto_nome]['total'] += item['preco_total']
         
@@ -791,29 +830,39 @@ def api_relatorio_vendas():
         top_produtos = sorted(produtos_vendidos.items(), 
                             key=lambda x: x[1]['quantidade'], reverse=True)[:5]
         
+        print(f"Top produtos: {len(top_produtos)} produtos encontrados")
+        
         # Calcular lucro estimado (30% de margem média)
-        lucro_estimado = total_receita * 0.3 if total_receita else 0
+        lucro_estimado = total_receita * 0.3 if total_receita > 0 else 0.0
         
         # Calcular ticket médio
-        ticket_medio = total_receita / total_vendas if total_vendas > 0 else 0
+        ticket_medio = total_receita / total_vendas if total_vendas > 0 else 0.0
         
-        return jsonify({
+        # Preparar resposta final
+        resposta = {
             'success': True,
-            'total_vendas': total_receita,
-            'qtd_vendas': total_vendas,
-            'lucro_estimado': lucro_estimado,
-            'ticket_medio': ticket_medio,
+            'total_vendas': float(total_receita),
+            'qtd_vendas': int(total_vendas),
+            'lucro_estimado': float(lucro_estimado),
+            'ticket_medio': float(ticket_medio),
             'top_produtos': top_produtos,
             'vendas_por_dia': vendas_por_dia,
             'vendas_por_pagamento': vendas_por_pagamento,
             'vendas': dados_vendas
-        })
+        }
+        
+        print("=== FIM API RELATÓRIO VENDAS ===")
+        print(f"Resposta: {resposta['qtd_vendas']} vendas, R$ {resposta['total_vendas']:.2f}")
+        
+        return jsonify(resposta)
         
     except Exception as e:
-        print(f"Erro ao gerar relatório de vendas: {e}")
+        print(f"ERRO CRÍTICO na API de relatórios: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': f'Erro ao gerar relatório: {str(e)}'
+            'error': f'Erro interno ao gerar relatório: {str(e)}'
         }), 500
 
 @app.route('/debug/estoque')
@@ -1325,10 +1374,13 @@ def debug_sistema():
 def debug_relatorio():
     """Rota de debug para testar API de relatórios"""
     try:
+        print("=== DEBUG RELATÓRIO ===")
+        
         # Testar com dados do último mês
-        from datetime import datetime, timedelta
         hoje = datetime.now()
         inicio_mes = datetime(hoje.year, hoje.month, 1)
+        
+        print(f"Período de teste: {inicio_mes.strftime('%Y-%m-%d')} a {hoje.strftime('%Y-%m-%d')}")
         
         # Fazer a mesma query da API de relatórios
         query = Venda.query
@@ -1337,40 +1389,103 @@ def debug_relatorio():
             Venda.data_venda <= hoje
         ).order_by(Venda.data_venda.desc()).all()
         
+        print(f"Vendas encontradas: {len(vendas)}")
+        
         # Processar dados como na API
         dados_vendas = []
         for venda in vendas:
             try:
+                valor_liquido = float(venda.valor_total) - float(venda.desconto)
                 dados_vendas.append({
                     'id': venda.id,
                     'data': venda.data_venda.strftime('%d/%m/%Y %H:%M'),
                     'valor_total': float(venda.valor_total),
                     'desconto': float(venda.desconto),
-                    'valor_liquido': float(venda.valor_total - venda.desconto),
+                    'valor_liquido': valor_liquido,
                     'forma_pagamento': venda.forma_pagamento,
                     'vendedor': venda.user.nome if venda.user else 'N/A',
-                    'observacoes': venda.observacoes or '',
-                    'itens': [{
-                        'produto': item.produto.nome if item.produto else 'Produto não encontrado',
-                        'quantidade': item.quantidade,
-                        'preco_unitario': float(item.preco_unitario),
-                        'preco_total': float(item.preco_total)
-                    } for item in venda.itens]
+                    'itens_count': len(venda.itens)
                 })
+                print(f"Venda {venda.id}: R$ {valor_liquido:.2f}")
             except Exception as e:
                 print(f"Erro ao processar venda {venda.id}: {e}")
                 continue
+        
+        # Calcular totais
+        total_receita = sum(v['valor_liquido'] for v in dados_vendas)
         
         return jsonify({
             'success': True,
             'teste_periodo': f'{inicio_mes.strftime("%Y-%m-%d")} a {hoje.strftime("%Y-%m-%d")}',
             'total_vendas_encontradas': len(vendas),
             'dados_processados': len(dados_vendas),
+            'total_receita': total_receita,
             'primeira_venda': dados_vendas[0] if dados_vendas else None,
             'ultima_venda': dados_vendas[-1] if dados_vendas else None
         })
         
     except Exception as e:
+        print(f"Erro no debug: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/teste-api-relatorio')
+@login_required
+def teste_api_relatorio():
+    """Rota para testar a API de relatórios diretamente"""
+    try:
+        # Simular chamada da API com datas do último mês
+        hoje = datetime.now()
+        inicio_mes = datetime(hoje.year, hoje.month, 1)
+        
+        data_inicio = inicio_mes.strftime('%Y-%m-%d')
+        data_fim = hoje.strftime('%Y-%m-%d')
+        
+        print(f"Testando API com datas: {data_inicio} a {data_fim}")
+        
+        # Fazer a query manualmente
+        query = Venda.query
+        vendas = query.filter(
+            Venda.data_venda >= inicio_mes,
+            Venda.data_venda <= hoje
+        ).order_by(Venda.data_venda.desc()).all()
+        
+        print(f"Vendas encontradas: {len(vendas)}")
+        
+        # Processar como na API
+        dados_vendas = []
+        for venda in vendas:
+            valor_liquido = float(venda.valor_total) - float(venda.desconto)
+            dados_vendas.append({
+                'id': venda.id,
+                'data': venda.data_venda.strftime('%d/%m/%Y %H:%M'),
+                'valor_total': float(venda.valor_total),
+                'desconto': float(venda.desconto),
+                'valor_liquido': valor_liquido,
+                'forma_pagamento': venda.forma_pagamento,
+                'vendedor': venda.user.nome if venda.user else 'N/A'
+            })
+        
+        # Calcular totais
+        total_vendas = len(dados_vendas)
+        total_receita = sum(v['valor_liquido'] for v in dados_vendas)
+        lucro_estimado = total_receita * 0.3
+        ticket_medio = total_receita / total_vendas if total_vendas > 0 else 0
+        
+        return jsonify({
+            'success': True,
+            'teste_datas': f'{data_inicio} a {data_fim}',
+            'total_vendas': float(total_receita),
+            'qtd_vendas': int(total_vendas),
+            'lucro_estimado': float(lucro_estimado),
+            'ticket_medio': float(ticket_medio),
+            'vendas': dados_vendas
+        })
+        
+    except Exception as e:
+        print(f"Erro no teste: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
