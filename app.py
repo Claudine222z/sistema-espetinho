@@ -14,10 +14,22 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'sua-chave-secreta-aqui')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///espetinho.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Configurações para funcionar em todas as interfaces
+app.config['SERVER_NAME'] = None  # Permite acesso por qualquer hostname
+app.config['PREFERRED_URL_SCHEME'] = 'http'
+
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Middleware para adicionar headers CORS
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 # Modelos do banco de dados
 class User(UserMixin, db.Model):
@@ -802,6 +814,18 @@ def service_worker():
 def teste_camera():
     return app.send_static_file('teste_camera_debug.html')
 
+@app.route('/teste-conexao')
+def teste_conexao():
+    """Rota para testar se a conexão está funcionando"""
+    return jsonify({
+        'status': 'success',
+        'message': 'Conexão funcionando!',
+        'timestamp': datetime.now().isoformat(),
+        'host': request.host,
+        'url': request.url,
+        'method': request.method
+    })
+
 if __name__ == '__main__':
     with app.app_context():
         # Verificar se o banco existe, se não, criar
@@ -980,7 +1004,8 @@ if __name__ == '__main__':
             print("👤 Login: admin / admin123")
             print("💡 Para câmera em todos os navegadores, execute: python gerar_certificados.py")
             
-            app.run(debug=True, host='0.0.0.0', port=5000)
+            # Configurar para funcionar em todas as interfaces
+            app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
 
 # Initialize database and create admin user (after all models are defined)
 with app.app_context():
