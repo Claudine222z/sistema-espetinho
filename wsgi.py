@@ -42,9 +42,18 @@ try:
         except Exception as e:
             print(f"❌ Error initializing database: {e}")
     
+    # Configure app for production
+    app.config['SERVER_NAME'] = None
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
     # Export the app for Gunicorn
     application = app
     print("✅ WSGI application loaded successfully")
+    print("🌐 Production configuration applied")
+    print("🔒 HTTPS and secure cookies enabled")
     
 except Exception as e:
     print(f"❌ Error loading application: {e}")

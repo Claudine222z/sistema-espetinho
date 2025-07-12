@@ -854,6 +854,19 @@ def diagnostico():
         vendas_count = Venda.query.count()
         users_count = User.query.count()
         
+        # Verificar configurações de host
+        host_info = {
+            'request_host': request.host,
+            'request_url': request.url,
+            'request_remote_addr': request.remote_addr,
+            'request_user_agent': request.headers.get('User-Agent', 'N/A'),
+            'request_headers': dict(request.headers),
+            'app_server_name': app.config.get('SERVER_NAME'),
+            'app_preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME'),
+            'app_debug': app.debug,
+            'app_env': os.environ.get('FLASK_ENV', 'development')
+        }
+        
         # Verificar estoque atual
         estoque_data = []
         for produto in Produto.query.filter_by(ativo=True).all():
@@ -887,7 +900,8 @@ def diagnostico():
                 'secret_key': '***' if app.config.get('SECRET_KEY') else 'Not set',
                 'server_name': app.config.get('SERVER_NAME'),
                 'preferred_url_scheme': app.config.get('PREFERRED_URL_SCHEME')
-            }
+            },
+            'host_info': host_info
         })
     except Exception as e:
         return jsonify({
@@ -919,6 +933,14 @@ if __name__ == '__main__':
         print("💡 Para câmera em todos os navegadores, execute: python gerar_certificados.py")
         
         # Configurar para funcionar em todas as interfaces
+        print("🌐 URLs disponíveis:")
+        print("   - Local: http://localhost:5000")
+        print("   - IP: http://10.0.0.105:5000")
+        print("   - Rede: http://0.0.0.0:5000")
+        print("📱 Para acesso externo use: http://10.0.0.105:5000")
+        print("👤 Login: admin / admin123")
+        print("💡 Para câmera em todos os navegadores, execute: python gerar_certificados.py")
+        
         app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
 
 # Initialize database and create admin user (after all models are defined)
