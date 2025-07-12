@@ -1,0 +1,29 @@
+# Caddyfile para Sistema Espetinho
+# Este arquivo configura o Caddy para servir o Flask com HTTPS local
+
+# Configuração para desenvolvimento local
+localhost:5000 {
+    # Habilitar HTTPS local
+    tls internal
+    
+    # Proxy reverso para o Flask
+    reverse_proxy localhost:5001
+    
+    # Headers para PWA
+    header {
+        # Habilitar câmera em HTTPS
+        Cross-Origin-Embedder-Policy "require-corp"
+        Cross-Origin-Opener-Policy "same-origin"
+    }
+}
+
+# Configuração para IP local (substitua pelo seu IP)
+10.0.0.105:5000 {
+    tls internal
+    reverse_proxy localhost:5001
+    
+    header {
+        Cross-Origin-Embedder-Policy "require-corp"
+        Cross-Origin-Opener-Policy "same-origin"
+    }
+} 

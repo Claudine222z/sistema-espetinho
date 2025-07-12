@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Vendas - Sistema Espetinho{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Vendas</h1>
+            <p class="text-muted">Histórico de vendas realizadas</p>
+        </div>
+        <div>
+            <a href="{{ url_for('nova_venda') }}" class="btn btn-success">
+                <i class="fas fa-plus me-2"></i>Nova Venda
+            </a>
+        </div>
+    </div>
+
+    <!-- Lista de Vendas -->
+    <div class="card shadow">
+        <div class="card-header">
+            <h6 class="mb-0">
+                <i class="fas fa-shopping-cart me-2"></i>
+                Histórico de Vendas
+            </h6>
+        </div>
+        <div class="card-body">
+            {% if vendas %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Data/Hora</th>
+                            <th>Valor Total</th>
+                            {% if can_view_details %}
+                            <th>Desconto</th>
+                            <th>Forma Pagamento</th>
+                            <th>Vendedor</th>
+                            {% endif %}
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for venda in vendas %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-secondary">#{{ venda.id }}</span>
+                            </td>
+                            <td>
+                                <div>
+                                    <div class="fw-bold">{{ venda.data_venda.strftime('%d/%m/%Y') }}</div>
+                                    <small class="text-muted">{{ venda.data_venda.strftime('%H:%M') }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <strong class="text-success">R$ {{ "%.2f"|format(venda.valor_total) }}</strong>
+                            </td>
+                            {% if can_view_details %}
+                            <td>
+                                {% if venda.desconto > 0 %}
+                                    <span class="text-danger">-R$ {{ "%.2f"|format(venda.desconto) }}</span>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if venda.forma_pagamento == 'dinheiro' else 'primary' if venda.forma_pagamento == 'pix' else 'info' }}">
+                                    {{ venda.forma_pagamento.title() }}
+                                </span>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ venda.user.nome }}</small>
+                            </td>
+                            {% endif %}
+                            <td>
+                                {% if can_view_details %}
+                                <button type="button" class="btn btn-outline-info btn-sm" 
+                                        onclick="verDetalhesVenda({{ venda.id }})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% else %}
+                                <span class="text-muted small">Detalhes restritos</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Nenhuma venda registrada</h5>
+                <p class="text-muted">Comece registrando sua primeira venda!</p>
+                <a href="{{ url_for('nova_venda') }}" class="btn btn-success">
+                    <i class="fas fa-plus me-2"></i>Nova Venda
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes da Venda -->
+<div class="modal fade" id="modalDetalhesVenda" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes da Venda</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalDetalhesVendaBody">
+                <!-- Conteúdo será carregado via JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function verDetalhesVenda(vendaId) {
+    // Implementar carregamento dos detalhes da venda via AJAX
+    console.log('Ver detalhes da venda:', vendaId);
+    
+    // Por enquanto, apenas abre o modal
+    const modal = new bootstrap.Modal(document.getElementById('modalDetalhesVenda'));
+    modal.show();
+}
+</script>
+{% endblock %} 

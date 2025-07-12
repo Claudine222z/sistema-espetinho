@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Adicionar Estoque - Sistema Espetinho{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0">Adicionar Estoque</h1>
+            <p class="text-muted">Adicione produtos ao estoque</p>
+        </div>
+        <div>
+            <a href="{{ url_for('estoque') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Formulário -->
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        Nova Entrada de Estoque
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="produto_id" class="form-label">Produto *</label>
+                            <select class="form-select" id="produto_id" name="produto_id" required>
+                                <option value="">Selecione um produto...</option>
+                                {% for produto in produtos %}
+                                <option value="{{ produto.id }}" 
+                                        {{ 'selected' if request.args.get('produto_id')|int == produto.id }}>
+                                    {{ produto.nome }} - {{ produto.tipo.title() }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="quantidade" class="form-label">Quantidade *</label>
+                                <input type="number" class="form-control" id="quantidade" name="quantidade" 
+                                       min="1" value="1" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="custo_unitario" class="form-label">Custo Unitário (R$) *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">R$</span>
+                                    <input type="number" class="form-control" id="custo_unitario" name="custo_unitario" 
+                                           step="0.01" min="0" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Dica:</strong> O custo unitário é usado para calcular o lucro estimado das vendas.
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{{ url_for('estoque') }}" class="btn btn-outline-secondary me-md-2">
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-2"></i>Adicionar ao Estoque
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Preencher custo unitário automaticamente quando produto for selecionado
+    document.getElementById('produto_id').addEventListener('change', function() {
+        const produtoId = this.value;
+        if (produtoId) {
+            // Buscar informações do produto via AJAX
+            fetch(`/api/produto/${produtoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.produto.preco_custo > 0) {
+                        document.getElementById('custo_unitario').value = data.produto.preco_custo;
+                    }
+                })
+                .catch(error => console.error('Erro ao buscar produto:', error));
+        }
+    });
+
+    // Melhorar o envio do formulário
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        // Desabilitar botão e mostrar loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adicionando...';
+        
+        // Permitir que o formulário seja enviado normalmente
+        // O redirecionamento será feito pelo servidor
+        
+        // Adicionar timeout para garantir redirecionamento
+        setTimeout(() => {
+            if (submitBtn.disabled) {
+                window.location.href = '/estoque';
+            }
+        }, 3000);
+    });
+    </script>
+
+    <!-- Produtos sem estoque -->
+    {% set produtos_sem_estoque = produtos|selectattr('estoque_items', 'none')|list %}
+    {% if produtos_sem_estoque %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Produtos sem Estoque
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for produto in produtos_sem_estoque %}
+                        <div class="col-md-4 mb-2">
+                            <div class="d-flex align-items-center p-2 border rounded">
+                                <div class="flex-shrink-0">
+                                    {% if produto.tipo == 'espetinho' %}
+                                        <i class="fas fa-utensils text-success"></i>
+                                    {% elif produto.tipo == 'bebida' %}
+                                        <i class="fas fa-wine-bottle text-primary"></i>
+                                    {% else %}
+                                        <i class="fas fa-box text-info"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="mb-0">{{ produto.nome }}</h6>
+                                    <small class="text-muted">{{ produto.tipo.title() }}</small>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <a href="{{ url_for('adicionar_estoque') }}?produto_id={{ produto.id }}" 
+                                       class="btn btn-warning btn-sm">
+                                        <i class="fas fa-plus me-1"></i>Adicionar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 
