@@ -827,338 +827,186 @@ def teste_conexao():
     })
 
 if __name__ == '__main__':
-    with app.app_context():
-        # Verificar se o banco existe, se não, criar
-        if not os.path.exists('espetinho.db'):
-            print("🔄 Criando banco de dados...")
-            db.create_all()
-            print("✅ Banco de dados criado com sucesso!")
-        else:
-            print("✅ Banco de dados já existe!")
+    # Verificar se existem certificados SSL
+    cert_path = 'certs/cert.pem'
+    key_path = 'certs/key.pem'
+    use_https = os.path.exists(cert_path) and os.path.exists(key_path)
+    
+    if use_https:
+        print("🔐 HTTPS detectado! Sistema será iniciado com SSL")
+        print("🚀 Sistema iniciado! Acesse: https://localhost:5000")
+        print("🌐 Para acesso externo: https://10.0.0.105:5000")
+        print("👤 Login: admin / admin123")
+        print("⚠️  Aceite o aviso de certificado não confiável no navegador")
         
-        # Criar usuário admin se não existir
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
-            admin_user = User(
-                username='admin',
-                password_hash=generate_password_hash('admin123'),
-                nome='Administrador',
-                email='admin@espetinho.com',
-                role='admin'
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            print("✅ Usuário admin criado!")
-        else:
-            print("✅ Usuário admin já existe!")
+        app.run(debug=True, host='0.0.0.0', port=5000, 
+               ssl_context=(cert_path, key_path))
+    else:
+        print("🔓 HTTP detectado! Sistema será iniciado sem SSL")
+        print("🚀 Sistema iniciado! Acesse: http://localhost:5000")
+        print("🌐 Para acesso externo: http://10.0.0.105:5000")
+        print("👤 Login: admin / admin123")
+        print("💡 Para câmera em todos os navegadores, execute: python gerar_certificados.py")
         
-        # Criar dados de exemplo se não existirem produtos
-        if Produto.query.count() == 0:
-            print("📦 Criando produtos de exemplo...")
-            
-            # Produtos de exemplo
-            produtos_exemplo = [
-                {
-                    'nome': 'Espetinho de Carne',
-                    'tipo': 'espetinho',
-                    'preco_padrao': 8.50,
-                    'preco_custo': 5.00,
-                    'margem_lucro': 30.0,
-                    'descricao': 'Espetinho de carne bovina grelhada'
-                },
-                {
-                    'nome': 'Espetinho de Frango',
-                    'tipo': 'espetinho',
-                    'preco_padrao': 7.50,
-                    'preco_custo': 4.50,
-                    'margem_lucro': 30.0,
-                    'descricao': 'Espetinho de frango grelhado'
-                },
-                {
-                    'nome': 'Refrigerante Coca-Cola',
-                    'tipo': 'bebida',
-                    'preco_padrao': 5.00,
-                    'preco_custo': 2.50,
-                    'margem_lucro': 50.0,
-                    'descricao': 'Refrigerante Coca-Cola 350ml'
-                },
-                {
-                    'nome': 'Água Mineral',
-                    'tipo': 'bebida',
-                    'preco_padrao': 3.00,
-                    'preco_custo': 1.50,
-                    'margem_lucro': 50.0,
-                    'descricao': 'Água mineral 500ml'
-                }
-            ]
-            
-            for dados_produto in produtos_exemplo:
-                produto = Produto(**dados_produto)
-                produto.preco_sugerido = produto.calcular_preco_sugerido()
-                db.session.add(produto)
-            
-            db.session.commit()
-            print("✅ Produtos de exemplo criados!")
-            
-            # Adicionar estoque inicial
-            print("📦 Adicionando estoque inicial...")
-            produtos = Produto.query.all()
-            for produto in produtos:
-                estoque = Estoque(
-                    produto_id=produto.id,
-                    quantidade=50,
-                    custo_unitario=produto.preco_custo
-                )
-                db.session.add(estoque)
-            
-            db.session.commit()
-            print("✅ Estoque inicial adicionado!")
-            
-            # Criar algumas vendas de exemplo
-            print("💰 Criando vendas de exemplo...")
-            vendas_exemplo = [
-                {
-                    'valor_total': 25.50,
-                    'desconto': 0,
-                    'forma_pagamento': 'dinheiro',
-                    'observacoes': 'Venda de exemplo',
-                    'user_id': admin_user.id,
-                    'itens': [
-                        {'produto_id': 1, 'quantidade': 2, 'preco_unitario': 8.50, 'preco_total': 17.00},
-                        {'produto_id': 3, 'quantidade': 1, 'preco_unitario': 5.00, 'preco_total': 5.00},
-                        {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
-                    ]
-                },
-                {
-                    'valor_total': 16.00,
-                    'desconto': 2.00,
-                    'forma_pagamento': 'pix',
-                    'observacoes': 'Venda com desconto',
-                    'user_id': admin_user.id,
-                    'itens': [
-                        {'produto_id': 2, 'quantidade': 2, 'preco_unitario': 7.50, 'preco_total': 15.00},
-                        {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
-                    ]
-                }
-            ]
-            
-            for dados_venda in vendas_exemplo:
-                venda = Venda(
-                    valor_total=dados_venda['valor_total'],
-                    desconto=dados_venda['desconto'],
-                    forma_pagamento=dados_venda['forma_pagamento'],
-                    observacoes=dados_venda['observacoes'],
-                    user_id=dados_venda['user_id']
-                )
-                db.session.add(venda)
-                db.session.flush()  # Para obter o ID da venda
-                
-                # Adicionar itens da venda
-                for item_data in dados_venda['itens']:
-                    item = ItemVenda(
-                        venda_id=venda.id,
-                        produto_id=item_data['produto_id'],
-                        quantidade=item_data['quantidade'],
-                        preco_unitario=item_data['preco_unitario'],
-                        preco_total=item_data['preco_total']
-                    )
-                    db.session.add(item)
-                    
-                    # Atualizar estoque
-                    estoque_items = Estoque.query.filter_by(produto_id=item_data['produto_id']).all()
-                    qtd_restante = item_data['quantidade']
-                    
-                    for estoque_item in estoque_items:
-                        if qtd_restante <= 0:
-                            break
-                        if estoque_item.quantidade >= qtd_restante:
-                            estoque_item.quantidade -= qtd_restante
-                            qtd_restante = 0
-                        else:
-                            qtd_restante -= estoque_item.quantidade
-                            estoque_item.quantidade = 0
-            
-            db.session.commit()
-            print("✅ Vendas de exemplo criadas!")
-        else:
-            print("✅ Produtos já existem no sistema!")
-        
-        # Verificar se existem certificados SSL
-        cert_path = 'certs/cert.pem'
-        key_path = 'certs/key.pem'
-        use_https = os.path.exists(cert_path) and os.path.exists(key_path)
-        
-        if use_https:
-            print("🔐 HTTPS detectado! Sistema será iniciado com SSL")
-            print("🚀 Sistema iniciado! Acesse: https://localhost:5000")
-            print("🌐 Para acesso externo: https://10.0.0.105:5000")
-            print("👤 Login: admin / admin123")
-            print("⚠️  Aceite o aviso de certificado não confiável no navegador")
-            
-            app.run(debug=True, host='0.0.0.0', port=5000, 
-                   ssl_context=(cert_path, key_path))
-        else:
-            print("🔓 HTTP detectado! Sistema será iniciado sem SSL")
-            print("🚀 Sistema iniciado! Acesse: http://localhost:5000")
-            print("🌐 Para acesso externo: http://10.0.0.105:5000")
-            print("👤 Login: admin / admin123")
-            print("💡 Para câmera em todos os navegadores, execute: python gerar_certificados.py")
-            
-            # Configurar para funcionar em todas as interfaces
-            app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+        # Configurar para funcionar em todas as interfaces
+        app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
 
 # Initialize database and create admin user (after all models are defined)
-with app.app_context():
-    try:
-        db.create_all()
-        print("✅ Database tables created successfully")
-        
-        # Create admin user if it doesn't exist
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
-            admin_user = User(
-                username='admin',
-                password_hash=generate_password_hash('admin123'),
-                nome='Administrador',
-                email='admin@espetinho.com',
-                role='admin'
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            print("✅ Usuário admin criado!")
-        else:
-            print("✅ Usuário admin já existe!")
-        
-        # Criar dados de exemplo se não existirem produtos
-        if Produto.query.count() == 0:
-            print("📦 Criando produtos de exemplo...")
+def initialize_app():
+    with app.app_context():
+        try:
+            db.create_all()
+            print("✅ Database tables created successfully")
             
-            # Produtos de exemplo
-            produtos_exemplo = [
-                {
-                    'nome': 'Espetinho de Carne',
-                    'tipo': 'espetinho',
-                    'preco_padrao': 8.50,
-                    'preco_custo': 5.00,
-                    'margem_lucro': 30.0,
-                    'descricao': 'Espetinho de carne bovina grelhada'
-                },
-                {
-                    'nome': 'Espetinho de Frango',
-                    'tipo': 'espetinho',
-                    'preco_padrao': 7.50,
-                    'preco_custo': 4.50,
-                    'margem_lucro': 30.0,
-                    'descricao': 'Espetinho de frango grelhado'
-                },
-                {
-                    'nome': 'Refrigerante Coca-Cola',
-                    'tipo': 'bebida',
-                    'preco_padrao': 5.00,
-                    'preco_custo': 2.50,
-                    'margem_lucro': 50.0,
-                    'descricao': 'Refrigerante Coca-Cola 350ml'
-                },
-                {
-                    'nome': 'Água Mineral',
-                    'tipo': 'bebida',
-                    'preco_padrao': 3.00,
-                    'preco_custo': 1.50,
-                    'margem_lucro': 50.0,
-                    'descricao': 'Água mineral 500ml'
-                }
-            ]
-            
-            for dados_produto in produtos_exemplo:
-                produto = Produto(**dados_produto)
-                produto.preco_sugerido = produto.calcular_preco_sugerido()
-                db.session.add(produto)
-            
-            db.session.commit()
-            print("✅ Produtos de exemplo criados!")
-            
-            # Adicionar estoque inicial
-            print("📦 Adicionando estoque inicial...")
-            produtos = Produto.query.all()
-            for produto in produtos:
-                estoque = Estoque(
-                    produto_id=produto.id,
-                    quantidade=50,
-                    custo_unitario=produto.preco_custo
+            # Create admin user if it doesn't exist
+            admin_user = User.query.filter_by(username='admin').first()
+            if not admin_user:
+                admin_user = User(
+                    username='admin',
+                    password_hash=generate_password_hash('admin123'),
+                    nome='Administrador',
+                    email='admin@espetinho.com',
+                    role='admin'
                 )
-                db.session.add(estoque)
+                db.session.add(admin_user)
+                db.session.commit()
+                print("✅ Usuário admin criado!")
+            else:
+                print("✅ Usuário admin já existe!")
             
-            db.session.commit()
-            print("✅ Estoque inicial adicionado!")
-            
-            # Criar algumas vendas de exemplo
-            print("💰 Criando vendas de exemplo...")
-            vendas_exemplo = [
-                {
-                    'valor_total': 25.50,
-                    'desconto': 0,
-                    'forma_pagamento': 'dinheiro',
-                    'observacoes': 'Venda de exemplo',
-                    'user_id': admin_user.id,
-                    'itens': [
-                        {'produto_id': 1, 'quantidade': 2, 'preco_unitario': 8.50, 'preco_total': 17.00},
-                        {'produto_id': 3, 'quantidade': 1, 'preco_unitario': 5.00, 'preco_total': 5.00},
-                        {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
-                    ]
-                },
-                {
-                    'valor_total': 16.00,
-                    'desconto': 2.00,
-                    'forma_pagamento': 'pix',
-                    'observacoes': 'Venda com desconto',
-                    'user_id': admin_user.id,
-                    'itens': [
-                        {'produto_id': 2, 'quantidade': 2, 'preco_unitario': 7.50, 'preco_total': 15.00},
-                        {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
-                    ]
-                }
-            ]
-            
-            for dados_venda in vendas_exemplo:
-                venda = Venda(
-                    valor_total=dados_venda['valor_total'],
-                    desconto=dados_venda['desconto'],
-                    forma_pagamento=dados_venda['forma_pagamento'],
-                    observacoes=dados_venda['observacoes'],
-                    user_id=dados_venda['user_id']
-                )
-                db.session.add(venda)
-                db.session.flush()  # Para obter o ID da venda
+            # Criar dados de exemplo se não existirem produtos
+            if Produto.query.count() == 0:
+                print("📦 Criando produtos de exemplo...")
                 
-                # Adicionar itens da venda
-                for item_data in dados_venda['itens']:
-                    item = ItemVenda(
-                        venda_id=venda.id,
-                        produto_id=item_data['produto_id'],
-                        quantidade=item_data['quantidade'],
-                        preco_unitario=item_data['preco_unitario'],
-                        preco_total=item_data['preco_total']
+                # Produtos de exemplo
+                produtos_exemplo = [
+                    {
+                        'nome': 'Espetinho de Carne',
+                        'tipo': 'espetinho',
+                        'preco_padrao': 8.50,
+                        'preco_custo': 5.00,
+                        'margem_lucro': 30.0,
+                        'descricao': 'Espetinho de carne bovina grelhada'
+                    },
+                    {
+                        'nome': 'Espetinho de Frango',
+                        'tipo': 'espetinho',
+                        'preco_padrao': 7.50,
+                        'preco_custo': 4.50,
+                        'margem_lucro': 30.0,
+                        'descricao': 'Espetinho de frango grelhado'
+                    },
+                    {
+                        'nome': 'Refrigerante Coca-Cola',
+                        'tipo': 'bebida',
+                        'preco_padrao': 5.00,
+                        'preco_custo': 2.50,
+                        'margem_lucro': 50.0,
+                        'descricao': 'Refrigerante Coca-Cola 350ml'
+                    },
+                    {
+                        'nome': 'Água Mineral',
+                        'tipo': 'bebida',
+                        'preco_padrao': 3.00,
+                        'preco_custo': 1.50,
+                        'margem_lucro': 50.0,
+                        'descricao': 'Água mineral 500ml'
+                    }
+                ]
+                
+                for dados_produto in produtos_exemplo:
+                    produto = Produto(**dados_produto)
+                    produto.preco_sugerido = produto.calcular_preco_sugerido()
+                    db.session.add(produto)
+                
+                db.session.commit()
+                print("✅ Produtos de exemplo criados!")
+                
+                # Adicionar estoque inicial
+                print("📦 Adicionando estoque inicial...")
+                produtos = Produto.query.all()
+                for produto in produtos:
+                    estoque = Estoque(
+                        produto_id=produto.id,
+                        quantidade=50,
+                        custo_unitario=produto.preco_custo
                     )
-                    db.session.add(item)
+                    db.session.add(estoque)
+                
+                db.session.commit()
+                print("✅ Estoque inicial adicionado!")
+                
+                # Criar algumas vendas de exemplo
+                print("💰 Criando vendas de exemplo...")
+                vendas_exemplo = [
+                    {
+                        'valor_total': 25.50,
+                        'desconto': 0,
+                        'forma_pagamento': 'dinheiro',
+                        'observacoes': 'Venda de exemplo',
+                        'user_id': admin_user.id,
+                        'itens': [
+                            {'produto_id': 1, 'quantidade': 2, 'preco_unitario': 8.50, 'preco_total': 17.00},
+                            {'produto_id': 3, 'quantidade': 1, 'preco_unitario': 5.00, 'preco_total': 5.00},
+                            {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
+                        ]
+                    },
+                    {
+                        'valor_total': 16.00,
+                        'desconto': 2.00,
+                        'forma_pagamento': 'pix',
+                        'observacoes': 'Venda com desconto',
+                        'user_id': admin_user.id,
+                        'itens': [
+                            {'produto_id': 2, 'quantidade': 2, 'preco_unitario': 7.50, 'preco_total': 15.00},
+                            {'produto_id': 4, 'quantidade': 1, 'preco_unitario': 3.00, 'preco_total': 3.00}
+                        ]
+                    }
+                ]
+                
+                for dados_venda in vendas_exemplo:
+                    venda = Venda(
+                        valor_total=dados_venda['valor_total'],
+                        desconto=dados_venda['desconto'],
+                        forma_pagamento=dados_venda['forma_pagamento'],
+                        observacoes=dados_venda['observacoes'],
+                        user_id=dados_venda['user_id']
+                    )
+                    db.session.add(venda)
+                    db.session.flush()  # Para obter o ID da venda
                     
-                    # Atualizar estoque
-                    estoque_items = Estoque.query.filter_by(produto_id=item_data['produto_id']).all()
-                    qtd_restante = item_data['quantidade']
-                    
-                    for estoque_item in estoque_items:
-                        if qtd_restante <= 0:
-                            break
-                        if estoque_item.quantidade >= qtd_restante:
-                            estoque_item.quantidade -= qtd_restante
-                            qtd_restante = 0
-                        else:
-                            qtd_restante -= estoque_item.quantidade
-                            estoque_item.quantidade = 0
-            
-            db.session.commit()
-            print("✅ Vendas de exemplo criadas!")
-        else:
-            print("✅ Produtos já existem no sistema!")
-            
-    except Exception as e:
-        print(f"❌ Error initializing database: {e}") 
+                    # Adicionar itens da venda
+                    for item_data in dados_venda['itens']:
+                        item = ItemVenda(
+                            venda_id=venda.id,
+                            produto_id=item_data['produto_id'],
+                            quantidade=item_data['quantidade'],
+                            preco_unitario=item_data['preco_unitario'],
+                            preco_total=item_data['preco_total']
+                        )
+                        db.session.add(item)
+                        
+                        # Atualizar estoque
+                        estoque_items = Estoque.query.filter_by(produto_id=item_data['produto_id']).all()
+                        qtd_restante = item_data['quantidade']
+                        
+                        for estoque_item in estoque_items:
+                            if qtd_restante <= 0:
+                                break
+                            if estoque_item.quantidade >= qtd_restante:
+                                estoque_item.quantidade -= qtd_restante
+                                qtd_restante = 0
+                            else:
+                                qtd_restante -= estoque_item.quantidade
+                                estoque_item.quantidade = 0
+                
+                db.session.commit()
+                print("✅ Vendas de exemplo criadas!")
+            else:
+                print("✅ Produtos já existem no sistema!")
+                
+        except Exception as e:
+            print(f"❌ Error initializing database: {e}")
+
+# Executar inicialização apenas uma vez
+initialize_app() 
